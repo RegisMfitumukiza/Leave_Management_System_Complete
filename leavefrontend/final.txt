@@ -1,0 +1,112 @@
+# Leave Management System Requirements
+
+## Project Background
+Africa HR is seeking a Leave Management System to streamline staff leave applications and management processes. The system must comply with Rwandan Labor Law (2023) requirements.
+
+### Leave Types
+- Personal Time Off (PTO) - 20 days per year
+- Sick Leave
+- Compassionate Leave
+- Maternity Leave
+- Other leave types as per labor law
+
+## Technical Requirements
+
+### Technology Stack
+1. **Authentication Service**
+   - Java/Spring Boot
+
+2. **Leave Management Service**
+   - Java/Spring Boot
+
+3. **Frontend**
+   - React + Vite (JavaScript)
+   - Material UI
+   - Focus on user experience
+
+4. **Hosting**
+   - Public IP hosting required
+   - Options: DigitalOcean, AWS, Azure, Render, Railway, Netlify, Vercel
+   - Deployment guidance will be provided
+
+5. **Development Approach**
+   - AI-first development using Cursor IDE
+   - Microservice architecture (separate Authentication and Leave Management services)
+
+## Core Features
+
+### 1. Employee Dashboard
+- Leave balance viewing
+- Leave application submission
+- Leave history and status tracking
+- Document upload functionality
+- Team leave calendar with profile pictures
+- Public holidays calendar
+
+### 2. Leave Application System
+- Multiple leave type selection
+- Reason documentation (type-dependent)
+- Document upload capability
+- Application tracking
+
+### 3. Approval Workflow
+- Manager/Admin approval system
+- Email and in-app notifications
+- Approval/rejection with comments
+
+### 4. Leave Balance Management
+- Monthly accrual (1.66 days/month)
+- Carry-forward rules:
+  - Maximum 5 days carryover
+  - Excess days expire by January 31st (Kigali Time)
+- Admin/HR balance adjustment capabilities
+
+### 5. Admin/HR Panel
+- Leave type management
+- Accrual rate configuration
+- Organization-wide leave policy settings
+- Individual balance adjustments
+- Leave calendar management
+- Report generation and export (CSV/Excel)
+- Department-based filtering
+
+### 6. Team Calendar
+- Department-based leave visualization
+- Team member leave status
+
+### 7. Notification System
+- Email and push notifications for:
+  - Leave submissions
+  - Approval/rejection updates
+  - Upcoming leaves
+  - Pending approval reminders
+
+### 8. User Roles
+- Staff
+- Department Managers
+- Administrators
+
+## Authentication Requirements
+- Google Authenticator integration
+- Automatic Google profile picture import for avatars
+
+## Submission Requirements
+1. **Repository**
+   - GitHub/GitLab repository link
+
+2. **Docker**
+   - Docker Hub hosted images
+   - Cross-platform compatibility (including Mac)
+
+3. **Documentation**
+   - Step-by-step setup guide
+   - Testing documentation
+   - Environment variables (.env) configuration
+   - No manual app directory modifications required
+
+## Development Standards
+- All features must be fully functional
+- Real-world leave management rules implementation
+- Monthly leave accrual
+- Proper carryover handling
+- Cross-platform compatibility
