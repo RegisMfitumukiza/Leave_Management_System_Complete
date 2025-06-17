@@ -1,6 +1,7 @@
 package com.daking.auth.config;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -38,11 +39,29 @@ public class SecurityConfig {
         private final JwtAuthenticationFilter jwtAuthFilter;
         private final AuthenticationProvider authenticationProvider;
         private final UserService userService;
+        private final AppConfig appConfig;
+
+        @Value("${jwt.secret}")
+        private String jwtSecret;
+
+        @Value("${app.cors.allowed-origins}")
+        private String allowedOrigins;
+
+        @Value("${app.cors.allowed-methods}")
+        private String allowedMethods;
+
+        @Value("${app.cors.allowed-headers}")
+        private String allowedHeaders;
+
+        @Value("${app.cors.allow-credentials}")
+        private boolean allowCredentials;
+
+        @Value("${app.cors.max-age}")
+        private long maxAge;
 
         @Bean
         public JwtDecoder jwtDecoder() {
-                String secretKey = "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
-                byte[] keyBytes = secretKey.getBytes();
+                byte[] keyBytes = jwtSecret.getBytes();
                 SecretKey key = Keys.hmacShaKeyFor(keyBytes);
                 return NimbusJwtDecoder.withSecretKey(key).build();
         }
@@ -59,6 +78,8 @@ public class SecurityConfig {
                                                                 "/api/oauth2/**",
                                                                 "/oauth2/**",
                                                                 "/login/oauth2/**",
+                                                                "/actuator/health",
+                                                                "/actuator/info",
                                                                 // Swagger/OpenAPI
                                                                 "/v2/api-docs",
                                                                 "/v3/api-docs",
@@ -100,10 +121,25 @@ public class SecurityConfig {
         @Bean
         public CorsConfigurationSource corsConfigurationSource() {
                 CorsConfiguration configuration = new CorsConfiguration();
-                configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173"));
-                configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-                configuration.setAllowedHeaders(List.of("*"));
-                configuration.setAllowCredentials(true);
+
+                // Parse allowed origins (comma-separated string)
+                String[] origins = allowedOrigins.split(",");
+                configuration.setAllowedOrigins(Arrays.asList(origins));
+
+                // Parse allowed methods (comma-separated string)
+                String[] methods = allowedMethods.split(",");
+                configuration.setAllowedMethods(Arrays.asList(methods));
+
+                // Parse allowed headers
+                if ("*".equals(allowedHeaders)) {
+                        configuration.setAllowedHeaders(List.of("*"));
+                } else {
+                        String[] headers = allowedHeaders.split(",");
+                        configuration.setAllowedHeaders(Arrays.asList(headers));
+                }
+
+                configuration.setAllowCredentials(allowCredentials);
+                configuration.setMaxAge(maxAge);
 
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
                 source.registerCorsConfiguration("/**", configuration);
@@ -121,15 +157,19 @@ public class SecurityConfig {
                                                 .getPrincipal()).getAttribute("email");
                         }
                         if (email == null) {
-                                response.sendRedirect("http://localhost:5173/auth/oauth-success?error=missing_email");
+                                // Use the first allowed origin as the frontend URL
+                                String frontendUrl = allowedOrigins.split(",")[0];
+                                response.sendRedirect(frontendUrl + "/auth/oauth-success?error=missing_email");
                                 return;
                         }
                         // Generate JWT and refresh token for the user
                         var user = userService.getUserByEmail(email).orElseThrow();
                         String accessToken = userService.generateTokenForOAuthUser(email);
                         String refreshToken = userService.getJwtService().generateRefreshToken(user);
-                        // Redirect to frontend with both tokens as query params
-                        String redirectUrl = "http://localhost:5173/auth/oauth-success?token=" + accessToken
+
+                        // Use the first allowed origin as the frontend URL
+                        String frontendUrl = allowedOrigins.split(",")[0];
+                        String redirectUrl = frontendUrl + "/auth/oauth-success?token=" + accessToken
                                         + "&refreshToken=" + refreshToken;
                         RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
                         redirectStrategy.sendRedirect(request, response, redirectUrl);
