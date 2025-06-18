@@ -36,21 +36,35 @@ echo "✅ Environment file found"
 echo "🔨 Building Docker images..."
 docker-compose build --no-cache
 
+if [ $? -ne 0 ]; then
+    echo "❌ Build failed. Please check the error messages above."
+    exit 1
+fi
+
+echo "✅ Docker images built successfully"
+
 # Start services
 echo "🚀 Starting services..."
 docker-compose up -d
 
+if [ $? -ne 0 ]; then
+    echo "❌ Failed to start services. Please check the error messages above."
+    exit 1
+fi
+
+echo "✅ Services started successfully"
+
 # Wait for services to be ready
 echo "⏳ Waiting for services to be ready..."
 
-# Wait for MySQL
-echo "Waiting for MySQL..."
-while ! docker-compose exec mysql mysqladmin ping -h"localhost" --silent; do
+# Wait for PostgreSQL
+echo "Waiting for PostgreSQL..."
+while ! docker-compose exec postgres pg_isready -U postgres > /dev/null 2>&1; do
     sleep 2
 done
 
 # Wait for services
-echo "Waiting for services..."
+echo "Waiting for services to be ready..."
 sleep 30
 
 echo "🎉 Deployment completed successfully!"
@@ -60,6 +74,10 @@ echo "   Frontend: http://localhost:3000"
 echo "   Auth Service: http://localhost:8081"
 echo "   Leave Service: http://localhost:8082"
 echo "   Eureka Server: http://localhost:8761"
+echo ""
+echo "📊 To view service status: docker-compose ps"
+echo "📋 To view logs: docker-compose logs -f"
+echo "🛑 To stop services: docker-compose down"
 echo ""
 echo "🔑 Default Admin Credentials:"
 echo "   Username: admin"

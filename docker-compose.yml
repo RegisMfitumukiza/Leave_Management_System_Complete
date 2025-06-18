@@ -1,27 +1,26 @@
 version: '3.8'
 
 services:
-  # MySQL Database
-  mysql:
-    image: mysql:8.0
-    container_name: leave-management-mysql
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: leave-management-postgres
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-password}
-      MYSQL_DATABASE: ${DB_NAME:-leave_management}
-      MYSQL_USER: ${DB_USERNAME:-root}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Admin123.
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - leave-management-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Eureka Server
   eureka-server:
@@ -33,14 +32,14 @@ services:
     ports:
       - "8761:8761"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8761
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
       - EUREKA_INSTANCE_HOSTNAME=eureka-server
+      - EUREKA_DASHBOARD_USER=${EUREKA_DASHBOARD_USER}
+      - EUREKA_DASHBOARD_PASSWORD=${EUREKA_DASHBOARD_PASSWORD}
     networks:
       - leave-management-network
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
@@ -58,25 +57,87 @@ services:
     ports:
       - "8081:8081"
     environment:
+      # Spring Configuration
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8081
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/${DB_NAME:-leave_management}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-root}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-password}
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-      - EUREKA_INSTANCE_HOSTNAME=auth-service
-      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
-      - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
-      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
-      - SMTP_PORT=${SMTP_PORT:-587}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${AUTH_DB_HOST}:${AUTH_DB_PORT}/${AUTH_DB_NAME}
+      - SPRING_DATASOURCE_USERNAME=${AUTH_DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${AUTH_DB_PASSWORD}
+      
+      # Database Configuration
+      - DB_DRIVER=${DB_DRIVER}
+      
+      # JPA Configuration
+      - JPA_DDL_AUTO=${JPA_DDL_AUTO}
+      - JPA_SHOW_SQL=${JPA_SHOW_SQL}
+      - HIBERNATE_FORMAT_SQL=${HIBERNATE_FORMAT_SQL}
+      - HIBERNATE_DIALECT=${HIBERNATE_DIALECT}
+      
+      # File Upload Configuration
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE}
+      - MAX_REQUEST_SIZE=${MAX_REQUEST_SIZE}
+      
+      # JWT Configuration
+      - JWT_SECRET=${AUTH_JWT_SECRET}
+      - JWT_EXPIRATION=${JWT_EXPIRATION}
+      
+      # Mail Configuration
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
       - SMTP_USERNAME=${SMTP_USERNAME}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - MAIL_DEBUG=${MAIL_DEBUG}
+      - MAIL_ENABLED=${MAIL_ENABLED}
+      
+      # Google OAuth Configuration
+      - GOOGLE_CLIENT_ID=${AUTH_GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${AUTH_GOOGLE_CLIENT_SECRET}
+      
+      # Eureka Configuration
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_HOSTNAME=auth-service
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=${EUREKA_INSTANCE_PREFER_IP_ADDRESS}
+      - EUREKA_REGISTRY_FETCH_INTERVAL=${EUREKA_REGISTRY_FETCH_INTERVAL}
+      - EUREKA_INSTANCE_INFO_REPLICATION_INTERVAL=${EUREKA_INSTANCE_INFO_REPLICATION_INTERVAL}
+      - EUREKA_LEASE_RENEWAL_INTERVAL=${EUREKA_LEASE_RENEWAL_INTERVAL}
+      - EUREKA_LEASE_EXPIRATION_DURATION=${EUREKA_LEASE_EXPIRATION_DURATION}
+      
+      # CORS Configuration
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - CORS_ALLOWED_METHODS=${CORS_ALLOWED_METHODS}
+      - CORS_ALLOWED_HEADERS=${CORS_ALLOWED_HEADERS}
+      - CORS_ALLOW_CREDENTIALS=${CORS_ALLOW_CREDENTIALS}
+      - CORS_MAX_AGE=${CORS_MAX_AGE}
+      
+      # Logging Configuration
+      - LOG_LEVEL_SECURITY=${LOG_LEVEL_SECURITY}
+      - LOG_LEVEL_OAUTH2=${LOG_LEVEL_OAUTH2}
+      - LOG_LEVEL_APP=${LOG_LEVEL_APP}
+      - LOG_LEVEL_ROOT=${LOG_LEVEL_ROOT}
+      - LOG_LEVEL_HIBERNATE=${LOG_LEVEL_HIBERNATE}
+      - LOG_LEVEL_HIBERNATE_BINDER=${LOG_LEVEL_HIBERNATE_BINDER}
+      - LOG_LEVEL_ACTUATOR=${LOG_LEVEL_ACTUATOR}
+      - LOG_LEVEL_AUTOCONFIG=${LOG_LEVEL_AUTOCONFIG}
+      - LOG_LEVEL_CONTEXT=${LOG_LEVEL_CONTEXT}
+      - LOG_LEVEL_WEB=${LOG_LEVEL_WEB}
+      - LOG_LEVEL_EUREKA=${LOG_LEVEL_EUREKA}
+      - LOG_LEVEL_FEIGN=${LOG_LEVEL_FEIGN}
+      
+      # Feign Configuration
+      - FEIGN_CONNECT_TIMEOUT=${FEIGN_CONNECT_TIMEOUT}
+      - FEIGN_READ_TIMEOUT=${FEIGN_READ_TIMEOUT}
+      - FEIGN_LOGGER_LEVEL=${FEIGN_LOGGER_LEVEL}
+      - FEIGN_CIRCUIT_BREAKER_ENABLED=${FEIGN_CIRCUIT_BREAKER_ENABLED}
+      - FEIGN_HYSTRIX_ENABLED=${FEIGN_HYSTRIX_ENABLED}
+      - FEIGN_COMPRESSION_REQUEST=${FEIGN_COMPRESSION_REQUEST}
+      - FEIGN_COMPRESSION_RESPONSE=${FEIGN_COMPRESSION_RESPONSE}
+      
+      # Management Configuration
+      - HEALTH_SHOW_DETAILS=${HEALTH_SHOW_DETAILS}
     networks:
       - leave-management-network
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
@@ -96,25 +157,104 @@ services:
     ports:
       - "8082:8082"
     environment:
+      # Spring Configuration
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8082
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/${DB_NAME:-leave_management}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-root}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-password}
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-      - EUREKA_INSTANCE_HOSTNAME=leave-service
-      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
-      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
-      - SMTP_PORT=${SMTP_PORT:-587}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${LEAVE_DB_HOST}:${LEAVE_DB_PORT}/${LEAVE_DB_NAME}
+      - SPRING_DATASOURCE_USERNAME=${LEAVE_DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${LEAVE_DB_PASSWORD}
+      
+      # Database Configuration
+      - DB_DRIVER=${DB_DRIVER}
+      
+      # Flyway Configuration
+      - FLYWAY_ENABLED=${FLYWAY_ENABLED}
+      - FLYWAY_BASELINE_ON_MIGRATE=${FLYWAY_BASELINE_ON_MIGRATE}
+      - FLYWAY_LOCATIONS=${FLYWAY_LOCATIONS}
+      - FLYWAY_VALIDATE_ON_MIGRATE=${FLYWAY_VALIDATE_ON_MIGRATE}
+      
+      # JPA Configuration
+      - JPA_DDL_AUTO=${JPA_DDL_AUTO}
+      - JPA_SHOW_SQL=${JPA_SHOW_SQL}
+      - HIBERNATE_FORMAT_SQL=${HIBERNATE_FORMAT_SQL}
+      - HIBERNATE_DIALECT=${HIBERNATE_DIALECT}
+      
+      # File Upload Configuration
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE}
+      - MAX_REQUEST_SIZE=${MAX_REQUEST_SIZE}
+      
+      # JWT Configuration
+      - JWT_SECRET=${LEAVE_JWT_SECRET}
+      - JWT_EXPIRATION=${JWT_EXPIRATION}
+      
+      # Mail Configuration
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
       - SMTP_USERNAME=${SMTP_USERNAME}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - MAIL_DEBUG=${MAIL_DEBUG}
+      - MAIL_ENABLED=${MAIL_ENABLED}
+      
+      # Google OAuth Configuration
+      - GOOGLE_CLIENT_ID=${LEAVE_GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${LEAVE_GOOGLE_CLIENT_SECRET}
+      
+      # Service Configuration
       - AUTH_SERVICE_URL=http://auth-service:8081
+      - SERVICE_ACCOUNT_EMAIL=${SERVICE_ACCOUNT_EMAIL}
+      - SERVICE_ACCOUNT_PASSWORD=${SERVICE_ACCOUNT_PASSWORD}
+      
+      # Document and Reports Configuration
+      - DOCUMENT_UPLOAD_DIR=${DOCUMENT_UPLOAD_DIR}
+      - REPORTS_DIRECTORY=${REPORTS_DIRECTORY}
+      
+      # Eureka Configuration
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_HOSTNAME=leave-service
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=${EUREKA_INSTANCE_PREFER_IP_ADDRESS}
+      - EUREKA_REGISTRY_FETCH_INTERVAL=${EUREKA_REGISTRY_FETCH_INTERVAL}
+      - EUREKA_INSTANCE_INFO_REPLICATION_INTERVAL=${EUREKA_INSTANCE_INFO_REPLICATION_INTERVAL}
+      - EUREKA_LEASE_RENEWAL_INTERVAL=${EUREKA_LEASE_RENEWAL_INTERVAL}
+      - EUREKA_LEASE_EXPIRATION_DURATION=${EUREKA_LEASE_EXPIRATION_DURATION}
+      
+      # CORS Configuration
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - CORS_ALLOWED_METHODS=${CORS_ALLOWED_METHODS}
+      - CORS_ALLOWED_HEADERS=${CORS_ALLOWED_HEADERS}
+      - CORS_ALLOW_CREDENTIALS=${CORS_ALLOW_CREDENTIALS}
+      - CORS_MAX_AGE=${CORS_MAX_AGE}
+      
+      # Logging Configuration
+      - LOG_LEVEL_EUREKA=${LOG_LEVEL_EUREKA}
+      - LOG_LEVEL_FEIGN=${LOG_LEVEL_FEIGN}
+      - LOG_LEVEL_WEB=${LOG_LEVEL_WEB}
+      - LOG_LEVEL_SECURITY=${LOG_LEVEL_SECURITY}
+      - LOG_LEVEL_APP=${LOG_LEVEL_APP}
+      - LOG_LEVEL_ROOT=${LOG_LEVEL_ROOT}
+      - LOG_LEVEL_HIBERNATE=${LOG_LEVEL_HIBERNATE}
+      - LOG_LEVEL_HIBERNATE_BINDER=${LOG_LEVEL_HIBERNATE_BINDER}
+      - LOG_LEVEL_ACTUATOR=${LOG_LEVEL_ACTUATOR}
+      - LOG_LEVEL_AUTOCONFIG=${LOG_LEVEL_AUTOCONFIG}
+      - LOG_LEVEL_CONTEXT=${LOG_LEVEL_CONTEXT}
+      - LOG_LEVEL_CLIENT=${LOG_LEVEL_CLIENT}
+      
+      # Feign Configuration
+      - FEIGN_CONNECT_TIMEOUT=${FEIGN_CONNECT_TIMEOUT}
+      - FEIGN_READ_TIMEOUT=${FEIGN_READ_TIMEOUT}
+      - FEIGN_LOGGER_LEVEL=${FEIGN_LOGGER_LEVEL}
+      - FEIGN_CIRCUIT_BREAKER_ENABLED=${FEIGN_CIRCUIT_BREAKER_ENABLED}
+      - FEIGN_HYSTRIX_ENABLED=${FEIGN_HYSTRIX_ENABLED}
+      - FEIGN_COMPRESSION_REQUEST=${FEIGN_COMPRESSION_REQUEST}
+      - FEIGN_COMPRESSION_RESPONSE=${FEIGN_COMPRESSION_RESPONSE}
+      
+      # Management Configuration
+      - HEALTH_SHOW_DETAILS=${HEALTH_SHOW_DETAILS}
     volumes:
       - leave_uploads:/app/uploads
     networks:
       - leave-management-network
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
@@ -136,9 +276,10 @@ services:
     ports:
       - "3000:80"
     environment:
-      - REACT_APP_API_URL=http://localhost:3000
-      - REACT_APP_AUTH_SERVICE_URL=http://localhost:8081
-      - REACT_APP_LEAVE_SERVICE_URL=http://localhost:8082
+      - VITE_AUTH_SERVICE_URL=${VITE_AUTH_SERVICE_URL}
+      - VITE_LEAVE_SERVICE_URL=${VITE_LEAVE_SERVICE_URL}
+      - VITE_API_URL=${VITE_API_URL}
+      - VITE_API_TIMEOUT=${VITE_API_TIMEOUT}
     networks:
       - leave-management-network
     depends_on:
@@ -150,32 +291,12 @@ services:
       timeout: 10s
       retries: 3
 
-  # Nginx Reverse Proxy (Optional - for production)
-  nginx:
-    image: nginx:alpine
-    container_name: leave-management-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
-    networks:
-      - leave-management-network
-    depends_on:
-      - frontend
-      - auth-service
-      - leave-service
-    profiles:
-      - production
-
 volumes:
-  mysql_data:
+  postgres_data:
     driver: local
   leave_uploads:
     driver: local
 
 networks:
   leave-management-network:
-    driver: bridge 
+    driver: bridge

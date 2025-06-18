@@ -1,0 +1,32 @@
+# Docker Profile Configuration
+spring:
+  jpa:
+    show-sql: false
+    hibernate:
+      format_sql: false
+      ddl-auto: update
+  mail:
+    debug: false
+
+logging:
+  level:
+    com.daking.leave: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: INFO
+    org.hibernate.type.descriptor.sql.BasicBinder: INFO
+    org.springframework.web: INFO
+    root: INFO
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+eureka:
+  instance:
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:leave-service}
+    prefer-ip-address: true
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://frontend:80} 

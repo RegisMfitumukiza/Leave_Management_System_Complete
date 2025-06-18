@@ -39,9 +39,25 @@ REM Build Docker images
 echo 🔨 Building Docker images...
 docker-compose build --no-cache
 
+if %errorlevel% neq 0 (
+    echo ❌ Build failed. Please check the error messages above.
+    pause
+    exit /b 1
+)
+
+echo ✅ Docker images built successfully
+
 REM Start services
 echo 🚀 Starting services...
 docker-compose up -d
+
+if %errorlevel% neq 0 (
+    echo ❌ Failed to start services. Please check the error messages above.
+    pause
+    exit /b 1
+)
+
+echo ✅ Services started successfully
 
 REM Wait for services to be ready
 echo ⏳ Waiting for services to be ready...
@@ -55,8 +71,8 @@ echo    Auth Service: http://localhost:8081
 echo    Leave Service: http://localhost:8082
 echo    Eureka Server: http://localhost:8761
 echo.
-echo 🔑 Default Admin Credentials:
-echo    Username: admin
-echo    Password: admin123
+echo 📊 To view service status: docker-compose ps
+echo 📋 To view logs: docker-compose logs -f
+echo 🛑 To stop services: docker-compose down
 echo.
 pause 

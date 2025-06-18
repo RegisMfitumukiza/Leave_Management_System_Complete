@@ -1,0 +1,32 @@
+# Production Profile Configuration
+spring:
+  jpa:
+    show-sql: false
+    hibernate:
+      format_sql: false
+      ddl-auto: validate
+  mail:
+    debug: false
+
+logging:
+  level:
+    com.daking.leave: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    org.springframework.web: WARN
+    root: WARN
+
+management:
+  endpoint:
+    health:
+      show-details: when-authorized
+
+app:
+  cors:
+    allowed-origins: ${PRODUCTION_ALLOWED_ORIGINS:https://yourdomain.com}
+
+server:
+  tomcat:
+    max-threads: 400
+    min-spare-threads: 20 

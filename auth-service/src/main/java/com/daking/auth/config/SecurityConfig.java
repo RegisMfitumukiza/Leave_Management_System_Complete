@@ -39,7 +39,6 @@ public class SecurityConfig {
         private final JwtAuthenticationFilter jwtAuthFilter;
         private final AuthenticationProvider authenticationProvider;
         private final UserService userService;
-        private final AppConfig appConfig;
 
         @Value("${jwt.secret}")
         private String jwtSecret;
