@@ -4,19 +4,17 @@ FROM maven:3.8.4-eclipse-temurin-17 AS build
 # Set working directory
 WORKDIR /app
 
-# Copy pom.xml files
-COPY auth-service/pom.xml ./auth-service/
-COPY auth-service-api/pom.xml ./auth-service-api/
+# Copy pom.xml
+COPY pom.xml .
 
 # Download dependencies
-RUN mvn dependency:go-offline -f auth-service/pom.xml -B
+RUN mvn dependency:go-offline -B
 
 # Copy source code
-COPY auth-service/src ./auth-service/src
-COPY auth-service-api/src ./auth-service-api/src
+COPY src ./src
 
 # Build the application
-RUN mvn clean package -f auth-service/pom.xml -DskipTests
+RUN mvn clean package -DskipTests
 
 # Runtime stage
 FROM eclipse-temurin:17-jre-jammy
@@ -28,7 +26,7 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Copy the built JAR file
-COPY --from=build /app/auth-service/target/*.jar app.jar
+COPY --from=build /app/target/*.jar app.jar
 
 # Expose port
 EXPOSE 8081

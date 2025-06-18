@@ -97,7 +97,7 @@ public class OAuth2Controller {
                     .orElseGet(() -> {
                         log.info("Creating new user for Google login: {}", email);
                         return userService.registerWithGoogle(email, googleId, firstName, lastName, locale, pictureUrl);
-                    });
+            });
 
             // Update last login
             user = userService.updateLastLogin(user.getId());

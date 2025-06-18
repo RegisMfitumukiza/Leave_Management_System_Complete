@@ -4,19 +4,17 @@ FROM maven:3.8.4-eclipse-temurin-17 AS build
 # Set working directory
 WORKDIR /app
 
-# Copy pom.xml files
-COPY leave-service/pom.xml ./leave-service/
-COPY auth-service-api/pom.xml ./auth-service-api/
+# Copy pom.xml
+COPY pom.xml .
 
 # Download dependencies
-RUN mvn dependency:go-offline -f leave-service/pom.xml -B
+RUN mvn dependency:go-offline -B
 
 # Copy source code
-COPY leave-service/src ./leave-service/src
-COPY auth-service-api/src ./auth-service-api/src
+COPY src ./src
 
 # Build the application
-RUN mvn clean package -f leave-service/pom.xml -DskipTests
+RUN mvn clean package -DskipTests
 
 # Runtime stage
 FROM eclipse-temurin:17-jre-jammy
@@ -31,7 +29,7 @@ WORKDIR /app
 RUN mkdir -p /app/uploads/documents /app/reports
 
 # Copy the built JAR file
-COPY --from=build /app/leave-service/target/*.jar app.jar
+COPY --from=build /app/target/*.jar app.jar
 
 # Expose port
 EXPOSE 8082

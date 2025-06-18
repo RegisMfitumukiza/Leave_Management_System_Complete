@@ -179,16 +179,16 @@ public class UserServiceImpl implements UserService {
             throw new DuplicateUserException("User with Google ID " + googleId + " already exists");
         }
         try {
-            User user = new User();
-            user.setEmail(email);
-            user.setGoogleId(googleId);
-            user.setFirstName(firstName);
-            user.setLastName(lastName);
-            user.setUsername(email);
+        User user = new User();
+        user.setEmail(email);
+        user.setGoogleId(googleId);
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+        user.setUsername(email);
             user.setPassword(UUID.randomUUID().toString()); // For Google users, set a random password
-            user.setRole(Role.STAFF);
-            user.setActive(true);
-            user.setLastLogin(LocalDateTime.now());
+        user.setRole(Role.STAFF);
+        user.setActive(true);
+        user.setLastLogin(LocalDateTime.now());
             user.setLocale(locale);
             user.setCreatedAt(java.time.LocalDateTime.now());
             user.setUpdatedAt(java.time.LocalDateTime.now());
