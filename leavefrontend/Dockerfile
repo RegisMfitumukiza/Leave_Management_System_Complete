@@ -5,16 +5,20 @@ FROM node:18-alpine AS build
 WORKDIR /app
 
 # Copy package files
-COPY leavefrontend/package*.json ./
+COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm ci
 
 # Copy source code
-COPY leavefrontend/src ./src
-COPY leavefrontend/public ./public
-COPY leavefrontend/index.html ./
-COPY leavefrontend/vite.config.js ./
+COPY src ./src
+COPY public ./public
+COPY index.html ./
+COPY vite.config.js ./
+COPY tailwind.config.js ./
+COPY postcss.config.cjs ./
+COPY jsconfig.json ./
+COPY components.json ./
 
 # Build the application
 RUN npm run build
@@ -23,7 +27,7 @@ RUN npm run build
 FROM nginx:alpine
 
 # Copy custom nginx configuration
-COPY leavefrontend/nginx.conf /etc/nginx/nginx.conf
+COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy built application
 COPY --from=build /app/dist /usr/share/nginx/html
@@ -39,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD curl -f http://localhost/health || exit 1
 
 # Start nginx
-CMD ["nginx", "-g", "daemon off;"] 
+CMD ["nginx", "-g", "daemon off;"]

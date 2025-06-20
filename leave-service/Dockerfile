@@ -1,20 +1,4 @@
-# Multi-stage build for Leave Service
-FROM maven:3.8.4-eclipse-temurin-17 AS build
-
-# Set working directory
-WORKDIR /app
-
-# Copy pom.xml
-COPY pom.xml .
-
-
-# Copy source code
-COPY src ./src
-
-# Build the application
-RUN mvn clean package -DskipTests
-
-# Runtime stage
+# Runtime stage for Leave Service
 FROM eclipse-temurin:17-jre-jammy
 
 # Install curl for health checks
@@ -26,8 +10,8 @@ WORKDIR /app
 # Create uploads directory
 RUN mkdir -p /app/uploads/documents /app/reports
 
-# Copy the built JAR file
-COPY --from=build /app/target/*.jar app.jar
+# Copy the pre-built JAR file
+COPY target/*.jar app.jar
 
 # Expose port
 EXPOSE 8082

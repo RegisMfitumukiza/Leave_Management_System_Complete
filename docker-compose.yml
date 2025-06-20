@@ -115,6 +115,13 @@ services:
       - CORS_ALLOW_CREDENTIALS=${CORS_ALLOW_CREDENTIALS}
       - CORS_MAX_AGE=${CORS_MAX_AGE}
       
+      # Auth Service CORS Configuration (mapped to app.cors.*)
+      - app.cors.allowed-origins=${CORS_ALLOWED_ORIGINS}
+      - app.cors.allowed-methods=${CORS_ALLOWED_METHODS}
+      - app.cors.allowed-headers=${CORS_ALLOWED_HEADERS}
+      - app.cors.allow-credentials=${CORS_ALLOW_CREDENTIALS}
+      - app.cors.max-age=${CORS_MAX_AGE}
+      
       # Logging Configuration
       - LOG_LEVEL_SECURITY=${LOG_LEVEL_SECURITY}
       - LOG_LEVEL_OAUTH2=${LOG_LEVEL_OAUTH2}
