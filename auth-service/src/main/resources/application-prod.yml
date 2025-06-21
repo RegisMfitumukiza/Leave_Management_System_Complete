@@ -1,5 +1,4 @@
-# Production Profile Configuration
-spring:
+# Production Profile Configurationspring:
   jpa:
     show-sql: false
     hibernate:

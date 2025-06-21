@@ -2,6 +2,7 @@ package com.daking.auth.controller;
 
 import com.daking.auth.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
@@ -17,12 +18,13 @@ import java.util.Objects;
 @Slf4j
 @RestController
 @RequestMapping("/api/oauth2")
+@ConditionalOnProperty(name = "spring.security.oauth2.client.registration.google.client-id", havingValue = ".+", matchIfMissing = false)
 public class OAuth2Controller {
 
     @Autowired
     private UserService userService;
 
-    @Autowired
+    @Autowired(required = false)
     private OAuth2AuthorizedClientService clientService;
 
     @GetMapping("/authorization/google")
