@@ -11,6 +11,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import com.daking.auth.model.Role;
 import com.daking.auth.model.User;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.security.Key;
 import java.util.*;
@@ -19,6 +21,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class JWTService {
+
+    private static final Logger logger = LoggerFactory.getLogger(JWTService.class);
 
     @Value("${jwt.secret}")
     private String secretKey;
@@ -42,22 +46,18 @@ public class JWTService {
         Map<String, Object> claims = new HashMap<>();
         String roleName = null;
         Long userId = null;
-        String email = null;
-        if (userDetails instanceof com.daking.auth.model.userPrinciple) {
-            var up = (com.daking.auth.model.userPrinciple) userDetails;
+        if (userDetails instanceof com.daking.auth.model.UserPrincipal) {
+            var up = (com.daking.auth.model.UserPrincipal) userDetails;
             roleName = up.getRole().name();
             userId = up.getId();
-            email = up.getUsername();
         } else if (userDetails instanceof User) {
             User user = (User) userDetails;
             roleName = user.getRole().name();
             userId = user.getId();
-            email = user.getEmail();
         }
         claims.put("role", roleName);
         claims.put("roles", List.of("ROLE_" + roleName));
         claims.put("userId", userId); // Numeric ID
-        claims.put("email", email); // Email for reference
         // ... other claims as needed
         return generateToken(claims, userDetails);
     }
@@ -118,7 +118,7 @@ public class JWTService {
                 return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
             }
         } catch (Exception e) {
-            System.err.println("[JWTService] Error extracting authorities: " + e.getMessage());
+            logger.error("[JWTService] Error extracting authorities: {}", e.getMessage());
         }
         return null;
     }

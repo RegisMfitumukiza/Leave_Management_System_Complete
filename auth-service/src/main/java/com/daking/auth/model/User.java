@@ -36,16 +36,12 @@ public class User implements UserDetails {
     @Column(name = "last_name", nullable = false)
     private String lastName;
 
-    @NotBlank
-    @Email
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email should be valid")
     @Column(unique = true, nullable = false)
     private String email;
 
-    @NotBlank
-    @Column(unique = true, nullable = false)
-    private String username;
-
-    @NotBlank
+    @NotBlank(message = "Password is required")
     @Column(nullable = false)
     private String password;
 
@@ -199,7 +195,7 @@ public class User implements UserDetails {
 
     @Override
     public String getUsername() {
-        return this.email;
+        return email;
     }
 
     public void setIsActive(boolean isActive) {

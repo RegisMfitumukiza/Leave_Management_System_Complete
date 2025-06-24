@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "leaves")
@@ -44,8 +45,9 @@ public class Leave {
     private String comments;
     private Long approverId;
 
-    // Store document IDs as comma-separated string
-    private String documentIds;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "leave_documents", joinColumns = @JoinColumn(name = "leave_id"), inverseJoinColumns = @JoinColumn(name = "document_id"))
+    private List<Document> documents;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

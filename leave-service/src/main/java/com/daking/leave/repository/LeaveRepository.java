@@ -52,12 +52,30 @@ public interface LeaveRepository extends JpaRepository<Leave, Long> {
                         @Param("start") java.time.LocalDate start,
                         @Param("end") java.time.LocalDate end);
 
-        @Query("SELECT l FROM Leave l JOIN FETCH l.leaveType WHERE l.documentIds LIKE CONCAT('%', :documentId, '%')")
-        List<Leave> findByDocumentIdWithType(@Param("documentId") String documentId);
+        /**
+         * Finds all leaves that are associated with a specific document.
+         * This is an efficient query that joins through the leave_documents table.
+         *
+         * @param documentId The ID of the document to search for.
+         * @return A list of leaves associated with the document.
+         */
+        @Query("SELECT l FROM Leave l JOIN FETCH l.leaveType JOIN l.documents d WHERE d.id = :documentId")
+        List<Leave> findByDocumentId(@Param("documentId") Long documentId);
 
         @Query("SELECT l FROM Leave l JOIN FETCH l.leaveType WHERE l.departmentId = :departmentId AND l.startDate >= :start AND l.endDate <= :end")
         List<Leave> findByDepartmentIdAndStartDateGreaterThanEqualAndEndDateLessThanEqualWithType(
                         @Param("departmentId") Long departmentId,
                         @Param("start") java.time.LocalDate start,
                         @Param("end") java.time.LocalDate end);
+
+        @Query("SELECT l FROM Leave l JOIN FETCH l.leaveType WHERE l.startDate >= :start AND l.endDate <= :end")
+        List<Leave> findByStartDateGreaterThanEqualAndEndDateLessThanEqualWithType(
+                        @Param("start") LocalDate start, @Param("end") LocalDate end);
+
+        @Query("SELECT l FROM Leave l JOIN FETCH l.leaveType WHERE l.departmentId IN :departmentIds AND l.startDate >= :start AND l.endDate <= :end")
+        List<Leave> findByDepartmentIdInAndStartDateGreaterThanEqualAndEndDateLessThanEqualWithType(
+                        @Param("departmentIds") List<Long> departmentIds, @Param("start") LocalDate start,
+                        @Param("end") LocalDate end);
+
+        List<Leave> findByDepartmentIdInAndStatus(List<Long> departmentIds, Leave.LeaveStatus status);
 }

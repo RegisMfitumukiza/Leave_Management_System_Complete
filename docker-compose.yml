@@ -14,6 +14,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - leave-management-network
     healthcheck:
@@ -264,6 +265,7 @@ services:
       - HEALTH_SHOW_DETAILS=${HEALTH_SHOW_DETAILS}
     volumes:
       - leave_uploads:/app/uploads
+      - leave_reports:/app/reports
     networks:
       - leave-management-network
     depends_on:
@@ -310,6 +312,8 @@ volumes:
   postgres_data:
     driver: local
   leave_uploads:
+    driver: local
+  leave_reports:
     driver: local
 
 networks:

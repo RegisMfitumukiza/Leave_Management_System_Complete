@@ -18,22 +18,22 @@ if %errorlevel% neq 0 (
 
 echo ✅ Docker and Docker Compose are installed
 
-REM Check if .env file exists
-if not exist .env (
-    echo ⚠️  .env file not found. Creating from template...
-    if exist env.example (
-        copy env.example .env
-        echo ⚠️  Please edit .env file with your configuration before continuing.
-        echo Press Enter when you're ready to continue...
-        pause
-    ) else (
-        echo ❌ env.example file not found. Please create .env file manually.
-        pause
-        exit /b 1
-    )
+REM Check if env.txt file exists
+if not exist env.txt (
+    echo ❌ env.txt file not found. Please create it with your configuration.
+    pause
+    exit /b 1
 )
 
 echo ✅ Environment file found
+
+REM Stop and remove existing containers
+echo 🛑 Stopping existing containers...
+docker-compose down
+
+REM Remove old images
+echo 🧹 Cleaning up old images...
+docker-compose down --rmi all
 
 REM Build Docker images
 echo 🔨 Building Docker images...
@@ -62,6 +62,10 @@ echo ✅ Services started successfully
 REM Wait for services to be ready
 echo ⏳ Waiting for services to be ready...
 timeout /t 30 /nobreak >nul
+
+REM Check service health
+echo 🏥 Checking service health...
+docker-compose ps
 
 echo 🎉 Deployment completed successfully!
 echo.

@@ -17,7 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.daking.leave.repository.LeaveRepository;
 import com.daking.leave.client.UserInfoClient;
-import com.daking.auth.api.model.User;
+import com.daking.auth.api.dto.UserResponseDTO;
 import com.daking.leave.model.Leave;
 
 @Service
@@ -29,9 +29,6 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Value("${app.document.upload.dir:./uploads/documents}")
     private String uploadDir;
-
-    @Value("${app.system.token:}")
-    private String systemToken;
 
     @Autowired
     public DocumentServiceImpl(DocumentRepository documentRepository, LeaveRepository leaveRepository,
@@ -109,7 +106,13 @@ public class DocumentServiceImpl implements DocumentService {
         return toResponse(doc);
     }
 
-    private DocumentResponse toResponse(Document doc) {
+    @Override
+    public List<Document> getDocumentsByIds(List<Long> ids) {
+        return documentRepository.findAllById(ids);
+    }
+
+    @Override
+    public DocumentResponse toResponse(Document doc) {
         DocumentResponse dto = new DocumentResponse();
         dto.setId(doc.getId());
         dto.setUserId(doc.getUserId());
@@ -121,16 +124,17 @@ public class DocumentServiceImpl implements DocumentService {
         dto.setStatus(doc.getStatus());
         // Enrich with employee name
         try {
-            User user = userInfoClient.getUserById(doc.getUserId(), systemToken);
+            UserResponseDTO user = userInfoClient.getUserById(doc.getUserId());
             if (user != null) {
-                dto.setEmployeeName(user.getFullName() != null ? user.getFullName() : user.getEmail());
+                dto.setEmployeeName(user.getFirstName() + " " + user.getLastName());
             }
         } catch (Exception e) {
-            dto.setEmployeeName("");
+            logger.warn("Could not enrich document {} with user name: {}", doc.getId(), e.getMessage());
+            dto.setEmployeeName("N/A");
         }
         // Enrich with leave type name
         try {
-            java.util.List<Leave> leaves = leaveRepository.findByDocumentIdWithType(String.valueOf(doc.getId()));
+            List<Leave> leaves = leaveRepository.findByDocumentId(doc.getId());
             if (leaves != null && !leaves.isEmpty() && leaves.get(0).getLeaveType() != null) {
                 dto.setLeaveTypeName(leaves.get(0).getLeaveType().getName());
             } else {
@@ -140,6 +144,12 @@ public class DocumentServiceImpl implements DocumentService {
             dto.setLeaveTypeName("");
         }
         return dto;
+    }
+
+    @Override
+    public Document getDocumentByFileName(String filename) {
+        return documentRepository.findByFileName(filename)
+                .orElse(null);
     }
 
     public DocumentRepository getDocumentRepository() {

@@ -1,88 +1,46 @@
 # Leave Management System
 
-A comprehensive leave management system built with Spring Boot microservices and React frontend, designed to comply with Rwandan Labor Law (2023) requirements.
+A comprehensive microservices-based leave management system built with Spring Boot, React, and Docker.
 
 ## 🏗️ Architecture
 
-This system follows a microservice architecture with the following components:
-
-- **Authentication Service** - Handles user authentication and authorization
-- **Leave Management Service** - Manages leave applications, approvals, and balances
-- **Eureka Server** - Service discovery and registration
-- **React Frontend** - Modern UI built with Material-UI
-
-## 🚀 Features
-
-### Core Features
-- ✅ Employee Dashboard with leave balance viewing
-- ✅ Leave application submission with document upload
-- ✅ Manager/Admin approval workflow
-- ✅ Leave balance management with monthly accrual
-- ✅ Team leave calendar with profile pictures
-- ✅ Public holidays calendar
-- ✅ Email and in-app notifications
-- ✅ Google Authenticator integration
-- ✅ Cross-platform compatibility
-
-### Leave Types
-- Personal Time Off (PTO) - 20 days per year
-- Sick Leave
-- Compassionate Leave
-- Maternity Leave
-- Other leave types as per labor law
-
-### User Roles
-- Staff
-- Department Managers
-- Administrators
-
-## 🛠️ Technology Stack
-
-### Backend
-- **Java 17**
-- **Spring Boot 3.x**
-- **Spring Security**
-- **Spring Data JPA**
-- **Maven**
-- **MySQL/PostgreSQL**
-- **Eureka Server** (Service Discovery)
-
-### Frontend
-- **React 18**
-- **Vite**
-- **Material-UI (MUI)**
-- **JavaScript**
-
-### Infrastructure
-- **Docker**
-- **Docker Compose**
-
-## 📋 Prerequisites
-
-- Java 17 or higher
-- Node.js 18 or higher
-- Docker and Docker Compose
-- Git
+- **Eureka Server**: Service discovery and registry (Port 8761)
+- **Auth Service**: Authentication, authorization, and user management (Port 8081)
+- **Leave Service**: Leave management, approvals, and reporting (Port 8082)
+- **Frontend**: React + Vite + Material UI application (Port 3000)
+- **PostgreSQL**: Database for all services
 
 ## 🚀 Quick Start
 
-### Option 1: Using Docker (Recommended)
+### Prerequisites
+
+- Docker and Docker Compose
+- Java 17 (for local development)
+- Node.js 18+ (for frontend development)
+
+### Local Development Setup
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repository-url>
-   cd Leave-Management
+   git clone <repository-url>
+   cd leave-management
    ```
 
-2. **Set up environment variables**
+2. **Configure environment**
    ```bash
-   cp .env.example .env
-   # Edit .env file with your configuration
+   # Copy and edit the environment file
+   cp env.txt .env
+   # Edit .env with your configuration
    ```
 
-3. **Start all services with Docker Compose**
+3. **Start the application**
    ```bash
+   # Using Docker Compose
    docker-compose up -d
+   
+   # Or use the deployment script
+   ./deploy.sh  # Linux/Mac
+   deploy.bat   # Windows
    ```
 
 4. **Access the application**
@@ -91,181 +49,265 @@ This system follows a microservice architecture with the following components:
    - Leave Service: http://localhost:8082
    - Eureka Server: http://localhost:8761
 
-### Option 2: Local Development
+### Default Credentials
 
-1. **Start the database**
+- **Admin User**: admin@africahr.com / admin123
+- **Sample Users**: 
+  - john.doe@africahr.com / admin123
+  - jane.smith@africahr.com / admin123
+
+## 🧪 Testing
+
+### API Testing
+
+1. **Auth Service Endpoints**
    ```bash
-   docker-compose up -d mysql
+   # Login
+   curl -X POST http://localhost:8081/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"admin@africahr.com","password":"admin123"}'
+   
+   # Get user profile
+   curl -X GET http://localhost:8081/api/auth/profile \
+     -H "Authorization: Bearer <token>"
    ```
 
-2. **Start Eureka Server**
+2. **Leave Service Endpoints**
    ```bash
-   cd eureka-server
-   mvn spring-boot:run
+   # Get leave types
+   curl -X GET http://localhost:8082/api/leave-types \
+     -H "Authorization: Bearer <token>"
+   
+   # Apply for leave
+   curl -X POST http://localhost:8082/api/leaves \
+     -H "Authorization: Bearer <token>" \
+     -H "Content-Type: application/json" \
+     -d '{"leaveTypeId":1,"startDate":"2024-01-15","endDate":"2024-01-17","reason":"Vacation"}'
    ```
 
-3. **Start Authentication Service**
+### Frontend Testing
+
+1. Open http://localhost:3000
+2. Login with admin credentials
+3. Test different user roles (Staff, Manager, Admin)
+4. Verify leave application and approval workflows
+
+## 🐳 Docker Deployment
+
+### Production Deployment
+
+1. **Build images**
    ```bash
-   cd auth-service
-   mvn spring-boot:run
+   docker-compose build --no-cache
    ```
 
-4. **Start Leave Management Service**
+2. **Deploy to production**
    ```bash
-   cd leave-service
-   mvn spring-boot:run
+   # Update env.txt with production values
+   docker-compose -f docker-compose.yml up -d
    ```
 
-5. **Start Frontend**
+### Docker Hub Publishing
+
+```bash
+# Tag images for Docker Hub
+docker tag leave-management-frontend:latest your-username/leave-management-frontend:latest
+docker tag leave-management-auth:latest your-username/leave-management-auth:latest
+docker tag leave-management-leave:latest your-username/leave-management-leave:latest
+docker tag leave-management-eureka:latest your-username/leave-management-eureka:latest
+
+# Push to Docker Hub
+docker push your-username/leave-management-frontend:latest
+docker push your-username/leave-management-auth:latest
+docker push your-username/leave-management-leave:latest
+docker push your-username/leave-management-eureka:latest
+```
+
+## 🌐 Cloud Deployment
+
+### DigitalOcean
+
+1. **Install DigitalOcean CLI**
+   ```bash
+   # macOS
+   brew install doctl
+   
+   # Linux
+   snap install doctl
+   ```
+
+2. **Deploy using the provided script**
+   ```bash
+   ./deploy-digitalocean.sh
+   ```
+
+### Railway
+
+1. **Connect your repository to Railway**
+2. **Set environment variables in Railway dashboard**
+3. **Deploy automatically on push**
+
+## 📊 Monitoring and Health Checks
+
+### Service Health Endpoints
+
+- Eureka Server: http://localhost:8761/actuator/health
+- Auth Service: http://localhost:8081/actuator/health
+- Leave Service: http://localhost:8082/actuator/health
+- Frontend: http://localhost:3000/health
+
+### Logs
+
+```bash
+# View all logs
+docker-compose logs -f
+
+# View specific service logs
+docker-compose logs -f auth-service
+docker-compose logs -f leave-service
+docker-compose logs -f frontend
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Key configuration variables in `env.txt`:
+
+- `POSTGRES_DB`: Database name
+- `JWT_SECRET`: JWT signing secret
+- `GOOGLE_CLIENT_ID`: Google OAuth client ID
+- `SMTP_HOST`: Email server configuration
+- `CORS_ALLOWED_ORIGINS`: Allowed frontend origins
+
+### Database Configuration
+
+The system uses PostgreSQL with separate databases:
+- `auth_db`: User authentication and management
+- `leave_db`: Leave management and reporting
+
+## 🛠️ Development
+
+### Local Development Setup
+
+1. **Backend Services**
+   ```bash
+   # Build all services
+   mvn clean install
+   
+   # Run individual services
+   cd auth-service && mvn spring-boot:run
+   cd leave-service && mvn spring-boot:run
+   cd eureka-server && mvn spring-boot:run
+   ```
+
+2. **Frontend Development**
    ```bash
    cd leavefrontend
    npm install
    npm run dev
    ```
 
-## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=leave_management
-DB_USERNAME=root
-DB_PASSWORD=password
-
-# JWT Configuration
-JWT_SECRET=your-jwt-secret-key
-JWT_EXPIRATION=86400000
-
-# Email Configuration
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-
-# Google OAuth
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-
-# Service Ports
-AUTH_SERVICE_PORT=8081
-LEAVE_SERVICE_PORT=8082
-EUREKA_SERVER_PORT=8761
-FRONTEND_PORT=3000
-```
-
-## 📁 Project Structure
+### Code Structure
 
 ```
-Leave Management/
-├── auth-service/           # Authentication microservice
-├── auth-service-api/       # Auth service API contracts
-├── eureka-server/         # Service discovery server
+├── auth-service/          # Authentication microservice
 ├── leave-service/         # Leave management microservice
-├── leavefrontend/         # React frontend application
+├── eureka-server/         # Service discovery
+├── auth-service-api/      # Shared API models
+├── leavefrontend/         # React frontend
 ├── docker-compose.yml     # Docker orchestration
-├── .env                   # Environment variables
-└── README.md             # This file
+├── env.txt               # Environment configuration
+└── init.sql              # Database initialization
 ```
 
-## 🐳 Docker Deployment
+## 🔒 Security
 
-### Build Images
-```bash
-# Build all services
-docker-compose build
-
-# Build individual services
-docker-compose build auth-service
-docker-compose build leave-service
-docker-compose build eureka-server
-```
-
-### Run with Docker Compose
-```bash
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop all services
-docker-compose down
-```
-
-## 🌐 Production Deployment
-
-### Option 1: DigitalOcean
-1. Create a Droplet
-2. Install Docker and Docker Compose
-3. Clone the repository
-4. Configure environment variables
-5. Run `docker-compose up -d`
-
-### Option 2: AWS
-1. Launch EC2 instance
-2. Install Docker and Docker Compose
-3. Configure security groups
-4. Deploy using the same Docker commands
-
-### Option 3: Railway/Render
-1. Connect your GitHub repository
-2. Configure environment variables
-3. Deploy automatically
-
-## 🧪 Testing
-
-### Backend Testing
-```bash
-# Run all tests
-mvn test
-
-# Run specific service tests
-cd auth-service && mvn test
-cd leave-service && mvn test
-```
-
-### Frontend Testing
-```bash
-cd leavefrontend
-npm test
-```
-
-## 📊 API Documentation
-
-### Authentication Service
-- Base URL: `http://localhost:8081`
-- Endpoints:
-  - `POST /api/auth/login` - User login
-  - `POST /api/auth/register` - User registration
-  - `GET /api/auth/profile` - Get user profile
-
-### Leave Management Service
-- Base URL: `http://localhost:8082`
-- Endpoints:
-  - `GET /api/leaves` - Get all leaves
-  - `POST /api/leaves` - Create leave application
-  - `PUT /api/leaves/{id}` - Update leave application
-  - `DELETE /api/leaves/{id}` - Delete leave application
-
-## 🔒 Security Features
+### Authentication
 
 - JWT-based authentication
-- Role-based access control
-- Google OAuth integration
-- Password encryption
-- CORS configuration
-- Input validation
+- Google OAuth 2.0 integration
+- Role-based access control (STAFF, MANAGER, ADMIN)
 
-## 📈 Monitoring
+### Authorization
 
-- Eureka Dashboard: http://localhost:8761
-- Application logs available in Docker containers
-- Health check endpoints for each service
+- Spring Security with method-level security
+- PreAuthorize annotations for endpoint protection
+- Service-to-service authentication
+
+## 📈 Performance
+
+### Optimizations
+
+- Connection pooling with HikariCP
+- JPA/Hibernate optimizations
+- Frontend code splitting and lazy loading
+- Nginx caching and compression
+
+### Scaling
+
+- Horizontal scaling with Eureka service discovery
+- Stateless services for easy scaling
+- Database connection pooling
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **Database Connection Issues**
+   ```bash
+   # Check PostgreSQL logs
+   docker-compose logs postgres
+   
+   # Verify database is running
+   docker-compose exec postgres pg_isready -U postgres
+   ```
+
+2. **Service Discovery Issues**
+   ```bash
+   # Check Eureka server
+   curl http://localhost:8761/eureka/apps
+   
+   # Verify service registration
+   docker-compose logs eureka-server
+   ```
+
+3. **Frontend Build Issues**
+   ```bash
+   # Clear node modules and rebuild
+   cd leavefrontend
+   rm -rf node_modules package-lock.json
+   npm install
+   npm run build
+   ```
+
+### Health Checks
+
+```bash
+# Check all services
+docker-compose ps
+
+# Check specific service health
+curl http://localhost:8081/actuator/health
+curl http://localhost:8082/actuator/health
+```
+
+## 📝 API Documentation
+
+### Auth Service API
+
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration
+- `GET /api/auth/profile` - Get user profile
+- `GET /api/auth/users` - Get all users (Admin only)
+
+### Leave Service API
+
+- `GET /api/leave-types` - Get leave types
+- `POST /api/leaves` - Apply for leave
+- `GET /api/leaves` - Get user leaves
+- `POST /api/leaves/{id}/approve` - Approve leave
+- `POST /api/leaves/{id}/reject` - Reject leave
 
 ## 🤝 Contributing
 
@@ -277,18 +319,15 @@ npm test
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 🆘 Support
 
 For support and questions:
 - Create an issue in the repository
 - Contact the development team
+- Check the troubleshooting section
 
-## 🔄 Updates
+---
 
-- Monthly leave accrual (1.66 days/month)
-- Carry-forward rules (max 5 days)
-- Automatic expiration by January 31st
-- Real-time notifications
-- Document upload functionality 
+**Built with ❤️ using Spring Boot, React, and Docker** 

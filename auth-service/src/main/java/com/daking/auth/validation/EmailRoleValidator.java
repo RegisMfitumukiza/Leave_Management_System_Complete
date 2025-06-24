@@ -11,7 +11,13 @@ public class EmailRoleValidator {
             return false;
         }
 
-        String localPart = user.getEmail().substring(0, user.getEmail().indexOf("@"));
+        String email = user.getEmail();
+        int atIndex = email.indexOf("@");
+        if (atIndex == -1 || atIndex == 0) {
+            return false; // Invalid email format
+        }
+
+        String localPart = email.substring(0, atIndex);
         return switch (user.getRole()) {
             case STAFF -> localPart.endsWith(".staff");
             case MANAGER -> localPart.endsWith(".manager");

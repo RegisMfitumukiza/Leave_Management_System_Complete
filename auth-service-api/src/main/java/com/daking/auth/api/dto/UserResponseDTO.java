@@ -9,7 +9,6 @@ public class UserResponseDTO {
     private String firstName;
     private String lastName;
     private String email;
-    private String username;
     private Role role;
     private Long departmentId;
     private Boolean isActive;
@@ -17,4 +16,8 @@ public class UserResponseDTO {
     private Boolean hasPendingApprovals;
     private Long managerId;
     private String avatarUrl;
+
+    public String getFullName() {
+        return (this.firstName != null ? this.firstName : "") + " " + (this.lastName != null ? this.lastName : "");
+    }
 }

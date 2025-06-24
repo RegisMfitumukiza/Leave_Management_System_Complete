@@ -1,30 +1,27 @@
 package com.daking.leave.client;
 
+import com.daking.leave.security.ServiceAccountTokenProvider;
 import feign.RequestInterceptor;
+import feign.RequestTemplate;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-import jakarta.servlet.http.HttpServletRequest;
-import com.daking.leave.security.ServiceAccountTokenProvider;
 
 @Configuration
+@RequiredArgsConstructor
 public class UserInfoFeignConfig {
+
+    private final ServiceAccountTokenProvider serviceAccountTokenProvider;
+
     @Bean
-    public RequestInterceptor requestInterceptor(ServiceAccountTokenProvider tokenProvider) {
-        return template -> {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
-                    .getRequestAttributes();
-            if (attributes != null) {
-                HttpServletRequest request = attributes.getRequest();
-                String authHeader = request.getHeader("Authorization");
-                if (authHeader != null) {
-                    template.header("Authorization", authHeader);
+    public RequestInterceptor requestInterceptor() {
+        return new RequestInterceptor() {
+            @Override
+            public void apply(RequestTemplate template) {
+                String token = serviceAccountTokenProvider.getToken();
+                if (token != null) {
+                    template.header("Authorization", "Bearer " + token);
                 }
-            } else {
-                // No HTTP request context, use system token
-                String systemToken = tokenProvider.getToken();
-                template.header("Authorization", "Bearer " + systemToken);
             }
         };
     }

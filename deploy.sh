@@ -16,21 +16,21 @@ fi
 
 echo "✅ Docker and Docker Compose are installed"
 
-# Check if .env file exists
-if [ ! -f .env ]; then
-    echo "⚠️  .env file not found. Creating from template..."
-    if [ -f env.example ]; then
-        cp env.example .env
-        echo "⚠️  Please edit .env file with your configuration before continuing."
-        echo "Press Enter when you're ready to continue..."
-        read
-    else
-        echo "❌ env.example file not found. Please create .env file manually."
-        exit 1
-    fi
+# Check if env.txt file exists
+if [ ! -f "env.txt" ]; then
+    echo "❌ env.txt file not found. Please create it with your configuration."
+    exit 1
 fi
 
 echo "✅ Environment file found"
+
+# Stop and remove existing containers
+echo "🛑 Stopping existing containers..."
+docker-compose down
+
+# Remove old images
+echo "🧹 Cleaning up old images..."
+docker-compose down --rmi all
 
 # Build Docker images
 echo "🔨 Building Docker images..."
@@ -56,16 +56,11 @@ echo "✅ Services started successfully"
 
 # Wait for services to be ready
 echo "⏳ Waiting for services to be ready..."
-
-# Wait for PostgreSQL
-echo "Waiting for PostgreSQL..."
-while ! docker-compose exec postgres pg_isready -U postgres > /dev/null 2>&1; do
-    sleep 2
-done
-
-# Wait for services
-echo "Waiting for services to be ready..."
 sleep 30
+
+# Check service health
+echo "🏥 Checking service health..."
+docker-compose ps
 
 echo "🎉 Deployment completed successfully!"
 echo ""

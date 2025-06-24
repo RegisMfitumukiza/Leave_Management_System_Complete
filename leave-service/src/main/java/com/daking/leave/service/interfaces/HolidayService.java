@@ -13,5 +13,5 @@ public interface HolidayService {
 
     void deleteHoliday(Long id);
 
-    void importRwandaPublicHolidays(int year);
+    void importUSPublicHolidays(int year);
 }

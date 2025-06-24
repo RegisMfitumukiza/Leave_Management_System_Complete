@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-
 @Service
 public class DepartmentServiceImpl implements DepartmentService {
 
@@ -30,9 +29,6 @@ public class DepartmentServiceImpl implements DepartmentService {
     public Department createDepartment(Department department) {
         if (departmentRepository.existsByName(department.getName())) {
             throw new DuplicateDepartmentException("Department with name " + department.getName() + " already exists");
-        }
-        if (department.getManager() != null) {
-            department.setManager(department.getManager());
         }
         return departmentRepository.save(department);
     }
@@ -144,8 +140,8 @@ public class DepartmentServiceImpl implements DepartmentService {
         }
         if (users != null) {
             dto.setUsers(users.stream()
-                .map(com.daking.auth.dto.UserSummaryDTO::fromUser)
-                .collect(java.util.stream.Collectors.toList()));
+                    .map(com.daking.auth.dto.UserSummaryDTO::fromUser)
+                    .collect(java.util.stream.Collectors.toList()));
         } else {
             dto.setUsers(java.util.Collections.emptyList());
         }

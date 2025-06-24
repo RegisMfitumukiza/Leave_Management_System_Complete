@@ -3,7 +3,6 @@ package com.daking.leave.controller;
 import com.daking.leave.repository.LeaveRepository;
 import com.daking.leave.repository.LeaveBalanceRepository;
 import com.daking.leave.client.UserInfoClient;
-import com.daking.auth.api.model.User;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
-import com.daking.leave.security.ServiceAccountTokenProvider;
+import java.util.function.Function;
 
 @RestController
 @RequestMapping("/api/leave-analytics")
@@ -23,27 +22,23 @@ public class LeaveAnalyticsController {
     private final LeaveRepository leaveRepository;
     private final LeaveBalanceRepository leaveBalanceRepository;
     private final UserInfoClient userInfoClient;
-    private final ServiceAccountTokenProvider serviceAccountTokenProvider;
 
     public LeaveAnalyticsController(LeaveRepository leaveRepository, LeaveBalanceRepository leaveBalanceRepository,
-            UserInfoClient userInfoClient,
-            ServiceAccountTokenProvider serviceAccountTokenProvider) {
+            UserInfoClient userInfoClient) {
         this.leaveRepository = leaveRepository;
         this.leaveBalanceRepository = leaveBalanceRepository;
         this.userInfoClient = userInfoClient;
-        this.serviceAccountTokenProvider = serviceAccountTokenProvider;
     }
 
     @GetMapping("/department-distribution")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<Map<String, Object>> getDepartmentDistribution(@RequestParam(required = false) Integer year,
             @RequestParam(required = false) Long departmentId) {
-        String systemToken = serviceAccountTokenProvider.getToken();
-        List<User> users = userInfoClient.getUsersByRole("STAFF", systemToken);
+        List<com.daking.auth.api.dto.UserResponseDTO> users = userInfoClient.getUsersByRole("STAFF");
         Map<String, Object> result = new HashMap<>();
         if (users == null || users.isEmpty())
             return ResponseEntity.ok(result);
-        for (User user : users) {
+        for (com.daking.auth.api.dto.UserResponseDTO user : users) {
             if (departmentId != null
                     && (user.getDepartmentId() == null || !user.getDepartmentId().equals(departmentId)))
                 continue;
@@ -103,10 +98,14 @@ public class LeaveAnalyticsController {
             @RequestParam(required = false) Long departmentId) {
         List<Map<String, Object>> alerts = new ArrayList<>();
         List<com.daking.leave.model.LeaveBalance> balances = leaveBalanceRepository.findAllWithType();
-        String systemToken = serviceAccountTokenProvider.getToken();
+        List<Long> userIds = balances.stream().map(com.daking.leave.model.LeaveBalance::getUserId).distinct()
+                .collect(Collectors.toList());
+        Map<Long, com.daking.auth.api.dto.UserResponseDTO> userMap = userInfoClient.getUsersByIds(userIds).stream()
+                .collect(Collectors.toMap(com.daking.auth.api.dto.UserResponseDTO::getId, Function.identity()));
+
         for (com.daking.leave.model.LeaveBalance b : balances) {
             if (b.getRemainingDays() < 3) {
-                User user = userInfoClient.getUserById(b.getUserId(), systemToken);
+                com.daking.auth.api.dto.UserResponseDTO user = userMap.get(b.getUserId());
                 if (departmentId != null && (user == null || user.getDepartmentId() == null
                         || !user.getDepartmentId().equals(departmentId)))
                     continue;
@@ -141,11 +140,14 @@ public class LeaveAnalyticsController {
     public ResponseEntity<Map<String, Object>> getCarryoverStats(@RequestParam Integer year) {
         Map<String, Object> result = new HashMap<>();
         List<com.daking.leave.model.LeaveBalance> balances = leaveBalanceRepository.findAllWithType();
-        String systemToken = serviceAccountTokenProvider.getToken();
+        List<Long> userIds = balances.stream().map(com.daking.leave.model.LeaveBalance::getUserId).distinct()
+                .collect(Collectors.toList());
+        Map<Long, com.daking.auth.api.dto.UserResponseDTO> userMap = userInfoClient.getUsersByIds(userIds).stream()
+                .collect(Collectors.toMap(com.daking.auth.api.dto.UserResponseDTO::getId, Function.identity()));
         for (com.daking.leave.model.LeaveBalance b : balances) {
             if (b.getYear() != year)
                 continue;
-            User user = userInfoClient.getUserById(b.getUserId(), systemToken);
+            com.daking.auth.api.dto.UserResponseDTO user = userMap.get(b.getUserId());
             String dept = user != null && user.getDepartmentId() != null ? ("Department " + user.getDepartmentId())
                     : "Unknown";
             double carry = b.getCarriedOverDays();

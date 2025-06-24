@@ -131,7 +131,7 @@ public class SecurityConfig {
 
                 // Parse allowed headers
                 if ("*".equals(allowedHeaders)) {
-                configuration.setAllowedHeaders(List.of("*"));
+                        configuration.setAllowedHeaders(List.of("*"));
                 } else {
                         String[] headers = allowedHeaders.split(",");
                         configuration.setAllowedHeaders(Arrays.asList(headers));

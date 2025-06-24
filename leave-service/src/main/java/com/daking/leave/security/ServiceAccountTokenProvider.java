@@ -1,53 +1,67 @@
 package com.daking.leave.security;
 
+import com.daking.auth.api.dto.LoginRequest;
+import com.daking.leave.client.AuthClient;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.http.*;
+
+import java.util.Date;
 import java.util.Map;
 
 @Service
 public class ServiceAccountTokenProvider {
 
-    @Value("${service.account.email}")
-    private String serviceAccountEmail;
-
-    @Value("${service.account.password}")
-    private String serviceAccountPassword;
-
-    @Value("${auth.service.url}")
-    private String authServiceUrl; // e.g., http://auth-service:8080
+    private final String serviceAccountEmail;
+    private final String serviceAccountPassword;
+    private final AuthClient authClient;
+    private final JwtService jwtService;
 
     private String cachedToken;
-    private long tokenExpiry = 0;
+    private Date tokenExpiry;
+
+    public ServiceAccountTokenProvider(
+            @Value("${service.account.email}") String serviceAccountEmail,
+            @Value("${service.account.password}") String serviceAccountPassword,
+            AuthClient authClient,
+            JwtService jwtService) {
+        this.serviceAccountEmail = serviceAccountEmail;
+        this.serviceAccountPassword = serviceAccountPassword;
+        this.authClient = authClient;
+        this.jwtService = jwtService;
+    }
 
     public synchronized String getToken() {
-        long now = System.currentTimeMillis();
-        if (cachedToken == null || now > tokenExpiry) {
-            fetchToken();
+        if (cachedToken == null || new Date().after(tokenExpiry)) {
+            fetchAndCacheToken();
         }
         return cachedToken;
     }
 
-    @SuppressWarnings("unchecked")
-    private void fetchToken() {
-        RestTemplate restTemplate = new RestTemplate();
-        String url = authServiceUrl + "/api/auth/login";
-        Map<String, String> request = Map.of(
-                "email", serviceAccountEmail,
-                "password", serviceAccountPassword);
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(request, headers);
+    private void fetchAndCacheToken() {
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setEmail(serviceAccountEmail);
+        loginRequest.setPassword(serviceAccountPassword);
 
-        ResponseEntity<Map<String, Object>> response = restTemplate.postForEntity(url, entity,
-                (Class<Map<String, Object>>) (Class<?>) Map.class);
+        ResponseEntity<Map<String, Object>> response = authClient.login(loginRequest);
+
         if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-            cachedToken = "Bearer " + response.getBody().get("accessToken");
-            // Optionally parse expiry from JWT or set a fixed refresh interval
-            tokenExpiry = System.currentTimeMillis() + 1000 * 60 * 50; // 50 minutes
+            String newAccessToken = (String) response.getBody().get("accessToken");
+            if (newAccessToken == null) {
+                throw new RuntimeException("accessToken not found in login response");
+            }
+            this.cachedToken = newAccessToken; // Cache the raw token
+
+            // Extract expiry date from the new token using the dedicated service method
+            this.tokenExpiry = jwtService.extractExpiration(newAccessToken);
+            if (this.tokenExpiry == null) {
+                throw new RuntimeException("Could not extract expiration from service account token");
+            }
+
         } else {
-            throw new RuntimeException("Failed to fetch service account token");
+            throw new RuntimeException(
+                    "Failed to fetch service account token. Status: " + response.getStatusCode());
         }
     }
 }

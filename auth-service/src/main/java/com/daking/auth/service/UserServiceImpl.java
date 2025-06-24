@@ -1,7 +1,7 @@
 package com.daking.auth.service;
 
 import com.daking.auth.model.User;
-import com.daking.auth.model.userPrinciple;
+import com.daking.auth.model.UserPrincipal;
 import com.daking.auth.model.Role;
 import com.daking.auth.repository.UserRepository;
 import com.daking.auth.dto.LoginRequest;
@@ -54,7 +54,6 @@ public class UserServiceImpl implements UserService {
             user.setLocale(null);
             user.setCreatedAt(java.time.LocalDateTime.now());
             user.setUpdatedAt(java.time.LocalDateTime.now());
-            user.setUsername(normalizedEmail);
             user.setPassword("oauth2");
 
             // Assign to first available department ONLY if STAFF
@@ -107,7 +106,7 @@ public class UserServiceImpl implements UserService {
         if (!user.isActive()) {
             throw new AuthenticationException("User account is inactive");
         }
-        UserDetails userDetails = new userPrinciple(user);
+        UserDetails userDetails = new UserPrincipal(user);
         return jwtService.generateToken(userDetails);
     }
 
@@ -134,7 +133,6 @@ public class UserServiceImpl implements UserService {
         dto.setFirstName(user.getFirstName());
         dto.setLastName(user.getLastName());
         dto.setEmail(user.getEmail());
-        dto.setUsername(user.getUsername());
         dto.setRole(user.getRole());
         dto.setDepartmentId(user.getDepartmentId());
         dto.setIsActive(user.isActive());
@@ -179,16 +177,15 @@ public class UserServiceImpl implements UserService {
             throw new DuplicateUserException("User with Google ID " + googleId + " already exists");
         }
         try {
-        User user = new User();
-        user.setEmail(email);
-        user.setGoogleId(googleId);
-        user.setFirstName(firstName);
-        user.setLastName(lastName);
-        user.setUsername(email);
+            User user = new User();
+            user.setEmail(email);
+            user.setGoogleId(googleId);
+            user.setFirstName(firstName);
+            user.setLastName(lastName);
             user.setPassword(UUID.randomUUID().toString()); // For Google users, set a random password
-        user.setRole(Role.STAFF);
-        user.setActive(true);
-        user.setLastLogin(LocalDateTime.now());
+            user.setRole(Role.STAFF);
+            user.setActive(true);
+            user.setLastLogin(LocalDateTime.now());
             user.setLocale(locale);
             user.setCreatedAt(java.time.LocalDateTime.now());
             user.setUpdatedAt(java.time.LocalDateTime.now());
@@ -303,7 +300,7 @@ public class UserServiceImpl implements UserService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
-        return new userPrinciple(user);
+        return new UserPrincipal(user);
     }
 
     @Override

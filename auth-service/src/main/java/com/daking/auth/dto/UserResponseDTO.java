@@ -9,7 +9,6 @@ public class UserResponseDTO {
     private String firstName;
     private String lastName;
     private String email;
-    private String username;
     private Role role;
     private Long departmentId;
     private Boolean isActive;

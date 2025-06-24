@@ -1,5 +1,5 @@
 # Multi-stage build for React Frontend
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 
 # Set working directory
 WORKDIR /app
@@ -26,14 +26,27 @@ RUN npm run build
 # Production stage with nginx
 FROM nginx:alpine
 
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Create non-root user
+RUN adduser -D -s /bin/sh appuser
+
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy built application
 COPY --from=build /app/dist /usr/share/nginx/html
 
+# Set ownership for nginx user
+RUN chown -R appuser:appuser /usr/share/nginx/html /var/cache/nginx /var/log/nginx /etc/nginx/conf.d
+
 # Create health check file
-RUN echo "healthy" > /usr/share/nginx/html/health
+RUN echo "healthy" > /usr/share/nginx/html/health && \
+    chown appuser:appuser /usr/share/nginx/html/health
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 80

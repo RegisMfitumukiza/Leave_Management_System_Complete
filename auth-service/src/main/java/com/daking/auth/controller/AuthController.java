@@ -40,7 +40,6 @@ public class AuthController {
         user.setFirstName(registrationDto.getFirstName());
         user.setLastName(registrationDto.getLastName());
         user.setEmail(registrationDto.getEmail());
-        user.setUsername(registrationDto.getEmail());
         user.setRole(Role.STAFF);
         user.setPassword(registrationDto.getPassword());
 
@@ -444,6 +443,16 @@ public class AuthController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(userService.convertToDTO(user));
+    }
+
+    @PostMapping("/users/by-ids")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<UserResponseDTO>> getUsersByIds(@RequestBody List<Long> userIds) {
+        List<User> users = userRepository.findAllById(userIds);
+        List<UserResponseDTO> dtos = users.stream()
+                .map(userService::convertToDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
     }
 
     // Utility method to extract email from principal

@@ -47,9 +47,9 @@ public class HolidayController {
 
     @PostMapping("/import-public-holidays")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> importRwandaPublicHolidays(@RequestParam int year) {
-        logger.info("Received request to import Rwanda public holidays for year {}", year);
-        holidayService.importRwandaPublicHolidays(year);
-        return ResponseEntity.ok("Imported Rwanda public holidays for " + year);
+    public ResponseEntity<?> importUSPublicHolidays(@RequestParam int year) {
+        logger.info("Received request to import US public holidays for year {}", year);
+        holidayService.importUSPublicHolidays(year);
+        return ResponseEntity.ok("Imported US public holidays for " + year);
     }
 }

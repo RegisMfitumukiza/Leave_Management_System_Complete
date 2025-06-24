@@ -25,4 +25,4 @@ management:
 # Development-specific settings
 app:
   cors:
-    allowed-origins: http://localhost:3000,http://localhost:5713,http://localhost:8080 
+    allowed-origins: http://localhost:3000,http://localhost:5713 

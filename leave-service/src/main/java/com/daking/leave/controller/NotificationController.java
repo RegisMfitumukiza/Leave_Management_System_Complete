@@ -19,29 +19,13 @@ public class NotificationController {
     @GetMapping
     public ResponseEntity<List<NotificationResponse>> getMyNotifications(
             @AuthenticationPrincipal String userIdStr) {
-        if (userIdStr == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Long userId;
-        try {
-            userId = Long.parseLong(userIdStr);
-        } catch (Exception e) {
-            return ResponseEntity.status(401).build();
-        }
+        Long userId = getUserIdFromPrincipal(userIdStr);
         return ResponseEntity.ok(notificationService.getNotifications(userId));
     }
 
     @GetMapping("/unread-count")
     public ResponseEntity<Integer> getUnreadCount(@AuthenticationPrincipal String userIdStr) {
-        if (userIdStr == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Long userId;
-        try {
-            userId = Long.parseLong(userIdStr);
-        } catch (Exception e) {
-            return ResponseEntity.status(401).build();
-        }
+        Long userId = getUserIdFromPrincipal(userIdStr);
         int count = notificationService.getNotifications(userId).stream().filter(n -> !n.isRead()).toArray().length;
         return ResponseEntity.ok(count);
     }
@@ -49,30 +33,14 @@ public class NotificationController {
     @GetMapping("/recent")
     public ResponseEntity<List<NotificationResponse>> getRecentNotifications(
             @AuthenticationPrincipal String userIdStr) {
-        if (userIdStr == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Long userId;
-        try {
-            userId = Long.parseLong(userIdStr);
-        } catch (Exception e) {
-            return ResponseEntity.status(401).build();
-        }
+        Long userId = getUserIdFromPrincipal(userIdStr);
         List<NotificationResponse> all = notificationService.getNotifications(userId);
         return ResponseEntity.ok(all.stream().limit(10).toList());
     }
 
     @PostMapping("/mark-all-read")
     public ResponseEntity<Void> markAllAsRead(@AuthenticationPrincipal String userIdStr) {
-        if (userIdStr == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Long userId;
-        try {
-            userId = Long.parseLong(userIdStr);
-        } catch (Exception e) {
-            return ResponseEntity.status(401).build();
-        }
+        Long userId = getUserIdFromPrincipal(userIdStr);
         notificationService.getNotifications(userId).forEach(n -> notificationService.markAsRead(n.getId()));
         return ResponseEntity.noContent().build();
     }
@@ -81,5 +49,16 @@ public class NotificationController {
     public ResponseEntity<Void> markAsReadPut(@PathVariable Long id) {
         notificationService.markAsRead(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private Long getUserIdFromPrincipal(String userIdStr) {
+        if (userIdStr == null) {
+            throw new IllegalArgumentException("User ID must not be null");
+        }
+        try {
+            return Long.parseLong(userIdStr);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid user ID format");
+        }
     }
 }

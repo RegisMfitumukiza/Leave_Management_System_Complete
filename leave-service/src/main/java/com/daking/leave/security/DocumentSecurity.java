@@ -1,14 +1,13 @@
 package com.daking.leave.security;
 
+import com.daking.auth.api.dto.UserResponseDTO;
 import com.daking.leave.model.Document;
 import com.daking.leave.repository.DocumentRepository;
 import com.daking.leave.client.UserInfoClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.Authentication;
 
-import java.util.Optional;
+import java.util.List;
 
 @Component
 public class DocumentSecurity {
@@ -29,8 +28,10 @@ public class DocumentSecurity {
         Long userId = parseUserId(username);
         if (userId == null)
             return false;
-        Optional<Document> docOpt = documentRepository.findById(documentId);
-        return docOpt.map(doc -> doc.getUserId().equals(userId)).orElse(false);
+
+        return documentRepository.findById(documentId)
+                .map(doc -> doc.getUserId().equals(userId))
+                .orElse(false);
     }
 
     /**
@@ -39,35 +40,35 @@ public class DocumentSecurity {
      * Allows access if the user is the owner, or if the user is a manager/admin.
      */
     public boolean canAccessFile(String filename, String username) {
-        Long userId = parseUserId(username);
-        if (userId == null)
+        Long currentUserId = parseUserId(username);
+        if (currentUserId == null)
             return false;
-        Optional<Document> docOpt = documentRepository.findAll().stream()
-                .filter(doc -> doc.getFileName().equals(filename))
-                .findFirst();
-        if (docOpt.isEmpty())
+
+        // Use the efficient repository method
+        Document doc = documentRepository.findByFileName(filename).orElse(null);
+        if (doc == null)
             return false;
-        Document doc = docOpt.get();
-        if (doc.getUserId().equals(userId))
+
+        // Check if the current user is the owner
+        if (doc.getUserId().equals(currentUserId)) {
             return true;
-        String token = getCurrentToken();
-        if (token == null)
-            return false;
-        String role = userInfoClient.getUserRole(userId, token);
-        if (role == null)
-            return false;
-        if ("ADMIN".equals(role))
+        }
+
+        // Check user's role without passing token manually
+        String role = userInfoClient.getUserRole(currentUserId);
+        if ("ADMIN".equals(role)) {
             return true;
+        }
+
         if ("MANAGER".equals(role)) {
-            // Get departments managed by this manager
-            java.util.List<Long> managedDepartments = userInfoClient.getDepartmentsManaged(userId, token);
-            // Get document owner's department
-            com.daking.auth.api.model.User owner = userInfoClient.getUserById(doc.getUserId(), token);
-            Long ownerDept = owner != null ? owner.getDepartmentId() : null;
-            if (ownerDept != null && managedDepartments != null && managedDepartments.contains(ownerDept)) {
-                return true;
+            List<Long> managedDepts = userInfoClient.getDepartmentsManaged(currentUserId);
+            UserResponseDTO owner = userInfoClient.getUserById(doc.getUserId());
+
+            if (owner != null && owner.getDepartmentId() != null && managedDepts != null) {
+                return managedDepts.contains(owner.getDepartmentId());
             }
         }
+
         return false;
     }
 
@@ -80,18 +81,5 @@ public class DocumentSecurity {
         } catch (NumberFormatException e) {
             return null;
         }
-    }
-
-    /**
-     * Helper to get the current JWT token from the SecurityContext.
-     */
-    private String getCurrentToken() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null)
-            return null;
-        if (authentication.getCredentials() instanceof String credentials) {
-            return "Bearer " + credentials;
-        }
-        return null;
     }
 }

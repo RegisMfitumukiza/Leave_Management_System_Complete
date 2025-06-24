@@ -1,553 +1,447 @@
 package com.daking.leave.service.impl;
 
+import com.daking.auth.api.dto.UserResponseDTO;
+import com.daking.auth.api.model.Role;
+import com.daking.leave.client.UserInfoClient;
 import com.daking.leave.dto.request.LeaveApplicationRequest;
 import com.daking.leave.dto.request.LeaveApprovalRequest;
 import com.daking.leave.dto.response.LeaveResponse;
-import com.daking.leave.model.Leave;
-import com.daking.leave.model.LeaveType;
-import com.daking.leave.model.LeaveBalance;
+import com.daking.leave.model.*;
+import com.daking.leave.repository.LeaveBalanceRepository;
 import com.daking.leave.repository.LeaveRepository;
 import com.daking.leave.repository.LeaveTypeRepository;
-import com.daking.leave.repository.LeaveBalanceRepository;
+import com.daking.leave.service.interfaces.DocumentService;
+import com.daking.leave.service.interfaces.InAppNotificationService;
 import com.daking.leave.service.interfaces.LeaveService;
-import com.daking.leave.client.UserInfoClient;
-import com.daking.leave.service.interfaces.NotificationService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import com.daking.leave.security.ServiceAccountTokenProvider;
-import com.daking.auth.api.dto.UserResponseDTO;
-import com.daking.leave.service.interfaces.DocumentService;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class LeaveServiceImpl implements LeaveService {
+
     private final LeaveRepository leaveRepository;
     private final LeaveTypeRepository leaveTypeRepository;
     private final LeaveBalanceRepository leaveBalanceRepository;
     private final UserInfoClient userInfoClient;
-    private final NotificationService notificationService;
-    private final ServiceAccountTokenProvider serviceAccountTokenProvider;
+    private final InAppNotificationService inAppNotificationService;
     private final DocumentService documentService;
-    private static final Logger logger = LoggerFactory.getLogger(LeaveServiceImpl.class);
-
-    @Autowired
-    public LeaveServiceImpl(LeaveRepository leaveRepository,
-            LeaveTypeRepository leaveTypeRepository,
-            LeaveBalanceRepository leaveBalanceRepository,
-            UserInfoClient userInfoClient,
-            NotificationService notificationService,
-            ServiceAccountTokenProvider serviceAccountTokenProvider,
-            DocumentService documentService) {
-        this.leaveRepository = leaveRepository;
-        this.leaveTypeRepository = leaveTypeRepository;
-        this.leaveBalanceRepository = leaveBalanceRepository;
-        this.userInfoClient = userInfoClient;
-        this.notificationService = notificationService;
-        this.serviceAccountTokenProvider = serviceAccountTokenProvider;
-        this.documentService = documentService;
-    }
 
     @Override
     @Transactional
-    public LeaveResponse applyForLeave(String userIdStr, LeaveApplicationRequest request) {
-        try {
-            // Validate user (via Feign)
-            Long userId = Long.parseLong(userIdStr);
-            var user = userInfoClient.getUserById(userId, null);
-            if (user == null)
-                throw new IllegalArgumentException("User not found");
-
-            // Validate leave type
-            LeaveType leaveType = leaveTypeRepository.findById(request.getLeaveTypeId())
-                    .orElseThrow(() -> new IllegalArgumentException("Leave type not found"));
-            if (!leaveType.getIsActive())
-                throw new IllegalArgumentException("Leave type is not active");
-
-            // Validate dates
-            LocalDate today = LocalDate.now();
-            if (request.getStartDate().isBefore(today))
-                throw new IllegalArgumentException("Start date cannot be in the past");
-            if (request.getEndDate().isBefore(request.getStartDate()))
-                throw new IllegalArgumentException("End date cannot be before start date");
-
-            // Calculate total days
-            double totalDays = (double) (request.getEndDate().toEpochDay() - request.getStartDate().toEpochDay() + 1);
-            if (totalDays <= 0)
-                throw new IllegalArgumentException("Invalid leave duration");
-
-            // Check leave balance
-            int year = today.getYear();
-            LeaveBalance balance = leaveBalanceRepository.findByUserIdAndLeaveTypeAndYear(userId, leaveType, year)
-                    .orElseGet(() -> {
-                        LeaveBalance b = new LeaveBalance();
-                        b.setUserId(userId);
-                        b.setLeaveType(leaveType);
-                        b.setYear(year);
-                        b.setTotalDays(leaveType.getDefaultDays());
-                        b.setUsedDays(0.0);
-                        b.setRemainingDays(leaveType.getDefaultDays());
-                        b.setCarriedOverDays(0.0);
-                        return b;
-                    });
-            if (balance.getRemainingDays() < totalDays)
-                throw new IllegalArgumentException("Insufficient leave balance");
-
-            // Debug log for documentIds
-            logger.info("Received documentIds in leave application: {}", request.getDocumentIds());
-
-            // Create Leave entity
-            Leave leave = new Leave();
-            leave.setUserId(userId);
-            leave.setLeaveType(leaveType);
-            leave.setStartDate(request.getStartDate());
-            leave.setEndDate(request.getEndDate());
-            leave.setTotalDays(totalDays);
-            leave.setStatus(Leave.LeaveStatus.PENDING);
-            leave.setReason(request.getReason());
-            // Always set documentIds, even if null or empty
-            leave.setDocumentIds(request.getDocumentIds() != null && !request.getDocumentIds().isEmpty()
-                    ? request.getDocumentIds().stream().map(String::valueOf).collect(Collectors.joining(","))
-                    : null);
-            leave.setDepartmentId(user.getDepartmentId());
-            leave = leaveRepository.save(leave);
-
-            // Reserve leave days (deduct from balance)
-            balance.setUsedDays(balance.getUsedDays() + totalDays);
-            balance.setRemainingDays(balance.getRemainingDays() - totalDays);
-            leaveBalanceRepository.save(balance);
-
-            // Notify user (email)
-            notificationService.sendEmail(user.getEmail(), "Leave Application Submitted",
-                    "Your leave application has been submitted.");
-            notificationService.sendInAppNotification(userId, "Your leave application has been submitted.",
-                    "LEAVE_SUBMITTED", leave.getId(), "/staff/leave-details/" + leave.getId());
-
-            return toResponse(leave);
-        } catch (Exception e) {
-            logger.error("Error applying for leave", e);
-            throw e;
+    public LeaveResponse applyForLeave(String userEmail, LeaveApplicationRequest request) {
+        UserResponseDTO user = userInfoClient.getUserByEmail(userEmail);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found with email: " + userEmail);
         }
-    }
 
-    private LeaveResponse toResponse(Leave leave) {
-        LeaveType leaveType = leave.getLeaveType();
-        LeaveResponse dto = new LeaveResponse();
-        dto.setId(leave.getId());
-        dto.setUserId(leave.getUserId());
-        dto.setLeaveTypeId(leaveType.getId());
-        dto.setLeaveTypeName(leaveType.getName());
-        dto.setStartDate(leave.getStartDate());
-        dto.setEndDate(leave.getEndDate());
-        dto.setTotalDays(leave.getTotalDays());
-        dto.setStatus(leave.getStatus().name());
-        dto.setReason(leave.getReason());
-        dto.setComments(leave.getComments());
-        dto.setApproverId(leave.getApproverId());
-        if (leave.getDocumentIds() != null && !leave.getDocumentIds().isEmpty()) {
-            List<Long> docIds = java.util.Arrays.stream(leave.getDocumentIds().split(",")).map(Long::valueOf)
-                    .collect(Collectors.toList());
-            dto.setDocumentIds(docIds);
-            List<com.daking.leave.dto.response.DocumentResponse> docs = docIds.stream()
-                    .map(id -> {
-                        try {
-                            return documentService.getDocumentById(id);
-                        } catch (Exception e) {
-                            return null;
-                        }
-                    })
-                    .filter(java.util.Objects::nonNull)
-                    .collect(Collectors.toList());
-            dto.setDocuments(docs);
+        LeaveType leaveType = leaveTypeRepository.findById(request.getLeaveTypeId())
+                .orElseThrow(() -> new IllegalArgumentException("Leave type not found"));
+
+        // Get current year for leave balance
+        LeaveBalance balance = leaveBalanceRepository
+                .findByUserIdAndLeaveTypeAndYear(user.getId(), leaveType, java.time.LocalDate.now().getYear())
+                .orElseThrow(() -> new IllegalArgumentException("Leave balance not found for user"));
+
+        if (balance.getRemainingDays() < java.time.temporal.ChronoUnit.DAYS.between(request.getStartDate(),
+                request.getEndDate()) + 1) {
+            throw new IllegalArgumentException("Insufficient leave balance.");
         }
-        dto.setCreatedAt(leave.getCreatedAt());
-        dto.setUpdatedAt(leave.getUpdatedAt());
-        // Set employeeName and leaveType for frontend display
+
+        Leave leave = new Leave();
+        leave.setUserId(user.getId());
+        leave.setLeaveType(leaveType);
+        leave.setStartDate(request.getStartDate());
+        leave.setEndDate(request.getEndDate());
+        leave.setTotalDays(
+                (double) (java.time.temporal.ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate())
+                        + 1));
+        leave.setReason(request.getReason());
+        leave.setStatus(Leave.LeaveStatus.PENDING);
+        leave.setDepartmentId(user.getDepartmentId());
+
+        if (request.getDocumentIds() != null && !request.getDocumentIds().isEmpty()) {
+            List<Document> docs = documentService.getDocumentsByIds(request.getDocumentIds());
+            leave.setDocuments(docs);
+        }
+
+        leave = leaveRepository.save(leave);
+
+        balance.setRemainingDays(balance.getRemainingDays()
+                - (double) (java.time.temporal.ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate())
+                        + 1));
+        leaveBalanceRepository.save(balance);
+
         try {
-            String systemToken = serviceAccountTokenProvider.getToken();
-            var user = userInfoClient.getUserById(leave.getUserId(), "Bearer " + systemToken);
-            if (user != null) {
-                dto.setEmployeeName(user.getFirstName() + " " + user.getLastName());
-            } else {
-                dto.setEmployeeName("User " + leave.getUserId());
+            List<UserResponseDTO> managers = userInfoClient.getManagers(user.getDepartmentId());
+            if (managers != null && !managers.isEmpty()) {
+                String applicantName = user.getFirstName() + " " + user.getLastName();
+                String message = String.format("New leave application from %s needs your review.", applicantName);
+                for (UserResponseDTO manager : managers) {
+                    inAppNotificationService.sendNotification(manager.getId(), message, "LEAVE_APPLICATION",
+                            leave.getId(), "/approvals/leave");
+                }
             }
         } catch (Exception e) {
-            dto.setEmployeeName("User " + leave.getUserId());
+            log.error("Could not send notification to manager for new leave application.", e);
         }
-        dto.setLeaveType(leaveType.getName());
-        return dto;
+
+        return toLeaveResponse(leave);
     }
 
     @Override
     @Transactional
     public LeaveResponse approveLeave(Long leaveId, String approverEmail, LeaveApprovalRequest request) {
-        try {
-            String systemToken = serviceAccountTokenProvider.getToken();
-            Object approverObj = approverEmail != null && approverEmail.matches("\\d+")
-                    ? userInfoClient.getUserById(Long.parseLong(approverEmail), systemToken)
-                    : userInfoClient.getUserByEmail(approverEmail, systemToken);
-            if (approverObj == null)
-                throw new IllegalArgumentException("Approver not found");
-            Long approverId = (approverObj instanceof com.daking.auth.api.model.User)
-                    ? ((com.daking.auth.api.model.User) approverObj).getId()
-                    : ((com.daking.auth.api.dto.UserResponseDTO) approverObj).getId();
-            Leave leave = leaveRepository.findById(leaveId)
-                    .orElseThrow(() -> new IllegalArgumentException("Leave application not found"));
-            if (leave.getStatus() != Leave.LeaveStatus.PENDING) {
-                throw new IllegalStateException("Only pending leave can be approved");
-            }
-            // Validate approver is manager/admin for the applicant's department
-            var applicant = userInfoClient.getUserById(leave.getUserId(), systemToken);
-            if (applicant == null)
-                throw new IllegalArgumentException("Applicant not found");
-            String approverRole = (approverObj instanceof com.daking.auth.api.model.User)
-                    ? ((com.daking.auth.api.model.User) approverObj).getRole().name()
-                    : ((com.daking.auth.api.dto.UserResponseDTO) approverObj).getRole().name();
-            if (!approverRole.equals("ADMIN")) {
-                // Fetch all departments managed by this manager
-                java.util.List<Long> managedDepartments = userInfoClient.getDepartmentsManaged(approverId,
-                        systemToken);
-                if (managedDepartments == null || !managedDepartments.contains(applicant.getDepartmentId())) {
-                    throw new IllegalArgumentException("Approver is not authorized for this leave");
-                }
-            }
-            leave.setStatus(Leave.LeaveStatus.APPROVED);
-            leave.setApproverId(approverId);
-            leave.setComments(request.getComments());
-            leave = leaveRepository.save(leave);
-
-            // Notify applicant (email)
-            notificationService.sendEmail(applicant.getEmail(), "Leave Approved", "Your leave has been approved.");
-            notificationService.sendInAppNotification(leave.getUserId(), "Your leave has been approved.",
-                    "LEAVE_APPROVED", leave.getId(), "/staff/leave-details/" + leave.getId());
-
-            return toResponse(leave);
-        } catch (Exception e) {
-            logger.error("Error approving leave", e);
-            throw e;
+        UserResponseDTO approver = userInfoClient.getUserByEmail(approverEmail);
+        if (approver == null) {
+            throw new IllegalArgumentException("Approver not found with email: " + approverEmail);
         }
+
+        Leave leave = leaveRepository.findById(leaveId)
+                .orElseThrow(() -> new IllegalArgumentException("Leave application not found"));
+
+        if (leave.getStatus() != Leave.LeaveStatus.PENDING) {
+            throw new IllegalStateException("Leave request is not in a pending state.");
+        }
+
+        UserResponseDTO applicant = userInfoClient.getUserById(leave.getUserId());
+        if (applicant == null) {
+            throw new IllegalArgumentException("Applicant not found for leave request.");
+        }
+
+        if (!isApproverAuthorized(approver, applicant.getDepartmentId())) {
+            throw new SecurityException("Approver is not authorized for this leave request.");
+        }
+
+        leave.setStatus(Leave.LeaveStatus.APPROVED);
+        leave.setApproverId(approver.getId());
+        leave.setComments(request.getComments());
+        leave = leaveRepository.save(leave);
+
+        String message = String.format("Your leave request for %s has been approved.", leave.getLeaveType().getName());
+        inAppNotificationService.sendNotification(applicant.getId(), message, "LEAVE_STATUS", leave.getId(),
+                "/leave/history");
+
+        return toLeaveResponse(leave);
     }
 
     @Override
     @Transactional
     public LeaveResponse rejectLeave(Long leaveId, String approverEmail, LeaveApprovalRequest request) {
-        try {
-            String systemToken = serviceAccountTokenProvider.getToken();
-            Object approverObj = approverEmail != null && approverEmail.matches("\\d+")
-                    ? userInfoClient.getUserById(Long.parseLong(approverEmail), systemToken)
-                    : userInfoClient.getUserByEmail(approverEmail, systemToken);
-            if (approverObj == null)
-                throw new IllegalArgumentException("Approver not found");
-            Long approverId = (approverObj instanceof com.daking.auth.api.model.User)
-                    ? ((com.daking.auth.api.model.User) approverObj).getId()
-                    : ((com.daking.auth.api.dto.UserResponseDTO) approverObj).getId();
-
-            Leave leave = leaveRepository.findById(leaveId)
-                    .orElseThrow(() -> new IllegalArgumentException("Leave application not found"));
-            if (leave.getStatus() != Leave.LeaveStatus.PENDING) {
-                throw new IllegalStateException("Only pending leave can be rejected");
-            }
-            // Validate approver is manager/admin for the applicant's department
-            var applicant = userInfoClient.getUserById(leave.getUserId(), systemToken);
-            if (applicant == null)
-                throw new IllegalArgumentException("Applicant not found");
-            String approverRole = (approverObj instanceof com.daking.auth.api.model.User)
-                    ? ((com.daking.auth.api.model.User) approverObj).getRole().name()
-                    : ((com.daking.auth.api.dto.UserResponseDTO) approverObj).getRole().name();
-            if (!approverRole.equals("ADMIN")) {
-                // Fetch all departments managed by this manager
-                java.util.List<Long> managedDepartments = userInfoClient.getDepartmentsManaged(approverId,
-                        systemToken);
-                if (managedDepartments == null || !managedDepartments.contains(applicant.getDepartmentId())) {
-                    throw new IllegalArgumentException("Approver is not authorized for this leave");
-                }
-            }
-            leave.setStatus(Leave.LeaveStatus.REJECTED);
-            leave.setApproverId(approverId);
-            leave.setComments(request.getComments());
-            leave = leaveRepository.save(leave);
-            // Restore leave days to balance
-            LeaveType leaveType = leave.getLeaveType();
-            int year = leave.getStartDate().getYear();
-            LeaveBalance balance = leaveBalanceRepository
-                    .findByUserIdAndLeaveTypeAndYear(leave.getUserId(), leaveType, year)
-                    .orElseThrow(() -> new IllegalStateException("Leave balance not found"));
-            balance.setUsedDays(balance.getUsedDays() - leave.getTotalDays());
-            balance.setRemainingDays(balance.getRemainingDays() + leave.getTotalDays());
-            leaveBalanceRepository.save(balance);
-
-            // Notify applicant (email)
-            notificationService.sendEmail(applicant.getEmail(), "Leave Rejected", "Your leave has been rejected.");
-            notificationService.sendInAppNotification(leave.getUserId(), "Your leave has been rejected.");
-
-            return toResponse(leave);
-        } catch (Exception e) {
-            logger.error("Error rejecting leave", e);
-            throw e;
+        UserResponseDTO approver = userInfoClient.getUserByEmail(approverEmail);
+        if (approver == null) {
+            throw new IllegalArgumentException("Approver not found with email: " + approverEmail);
         }
+
+        Leave leave = leaveRepository.findById(leaveId)
+                .orElseThrow(() -> new IllegalArgumentException("Leave application not found"));
+
+        if (leave.getStatus() != Leave.LeaveStatus.PENDING) {
+            throw new IllegalStateException("Leave request is not in a pending state.");
+        }
+
+        UserResponseDTO applicant = userInfoClient.getUserById(leave.getUserId());
+        if (applicant == null) {
+            throw new IllegalArgumentException("Applicant not found for leave request.");
+        }
+
+        if (!isApproverAuthorized(approver, applicant.getDepartmentId())) {
+            throw new SecurityException("Approver is not authorized for this leave request.");
+        }
+
+        leave.setStatus(Leave.LeaveStatus.REJECTED);
+        leave.setApproverId(approver.getId());
+        leave.setComments(request.getComments());
+        leave = leaveRepository.save(leave);
+
+        LeaveBalance balance = leaveBalanceRepository
+                .findByUserIdAndLeaveTypeAndYear(leave.getUserId(), leave.getLeaveType(),
+                        java.time.LocalDate.now().getYear())
+                .orElseThrow(() -> new IllegalStateException("Could not find leave balance to refund."));
+        balance.setRemainingDays(balance.getRemainingDays() + leave.getTotalDays());
+        leaveBalanceRepository.save(balance);
+
+        String message = String.format("Your leave request for %s has been rejected.", leave.getLeaveType().getName());
+        inAppNotificationService.sendNotification(applicant.getId(), message, "LEAVE_STATUS", leave.getId(),
+                "/leave/history");
+
+        return toLeaveResponse(leave);
     }
 
     @Override
     @Transactional
     public LeaveResponse cancelLeave(Long leaveId, String userEmail) {
-        String systemToken = serviceAccountTokenProvider.getToken();
-        var user = userInfoClient.getUserByEmail(userEmail, systemToken);
-        if (user == null)
-            throw new IllegalArgumentException("User not found");
-        Long userId = user.getId();
-        // Fetch leave
+        UserResponseDTO user = userInfoClient.getUserByEmail(userEmail);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found with email: " + userEmail);
+        }
+
         Leave leave = leaveRepository.findById(leaveId)
                 .orElseThrow(() -> new IllegalArgumentException("Leave application not found"));
-        if (leave.getUserId() == null || !leave.getUserId().equals(userId)) {
-            throw new IllegalArgumentException("User is not the owner of this leave application");
+
+        if (!leave.getUserId().equals(user.getId())) {
+            throw new SecurityException("User is not authorized to cancel this leave application.");
         }
-        if (leave.getStatus() != Leave.LeaveStatus.PENDING && leave.getStatus() != Leave.LeaveStatus.APPROVED) {
-            throw new IllegalStateException("Only pending or approved leave can be cancelled");
+
+        if (leave.getStatus() != Leave.LeaveStatus.PENDING) {
+            throw new IllegalStateException("Only pending leave requests can be cancelled.");
         }
-        // Update leave status
+
         leave.setStatus(Leave.LeaveStatus.CANCELLED);
-        leave = leaveRepository.save(leave);
-        // Restore leave days to balance
-        LeaveType leaveType = leave.getLeaveType();
-        int year = leave.getStartDate().getYear();
+        leaveRepository.save(leave);
+
         LeaveBalance balance = leaveBalanceRepository
-                .findByUserIdAndLeaveTypeAndYear(leave.getUserId(), leaveType, year)
-                .orElseThrow(() -> new IllegalStateException("Leave balance not found"));
-        balance.setUsedDays(balance.getUsedDays() - leave.getTotalDays());
+                .findByUserIdAndLeaveTypeAndYear(leave.getUserId(), leave.getLeaveType(),
+                        java.time.LocalDate.now().getYear())
+                .orElseThrow(() -> new IllegalStateException("Could not find leave balance to refund."));
         balance.setRemainingDays(balance.getRemainingDays() + leave.getTotalDays());
         leaveBalanceRepository.save(balance);
-        return toResponse(leave);
+
+        return toLeaveResponse(leave);
     }
 
     @Override
     public LeaveResponse getLeaveById(Long leaveId) {
-        Leave leave = leaveRepository.findById(leaveId)
-                .orElseThrow(() -> new IllegalArgumentException("Leave application not found"));
-        // If you need user info here, use systemToken
-        return toResponse(leave);
+        Leave leave = leaveRepository.findById(leaveId).orElseThrow(() -> new RuntimeException("Leave not found"));
+        return toLeaveResponse(leave);
     }
 
     @Override
     public List<LeaveResponse> getLeavesByUser(String userEmail) {
-        String systemToken = serviceAccountTokenProvider.getToken();
-        var user = userInfoClient.getUserByEmail(userEmail, systemToken);
-        if (user == null)
-            throw new IllegalArgumentException("User not found");
-        Long userId = user.getId();
-        List<Leave> leaves = leaveRepository.findByUserIdWithType(userId);
-        return leaves.stream().map(this::toResponse).collect(Collectors.toList());
-    }
-
-    @Override
-    public List<LeaveResponse> getPendingLeaves(String managerEmail) {
-        String systemToken = serviceAccountTokenProvider.getToken();
-        Object managerObj = managerEmail != null && managerEmail.matches("\\d+")
-                ? userInfoClient.getUserById(Long.parseLong(managerEmail), systemToken)
-                : userInfoClient.getUserByEmail(managerEmail, systemToken);
-        if (managerObj == null)
-            throw new IllegalArgumentException("Manager not found");
-        Long managerId = (managerObj instanceof com.daking.auth.api.model.User)
-                ? ((com.daking.auth.api.model.User) managerObj).getId()
-                : ((com.daking.auth.api.dto.UserResponseDTO) managerObj).getId();
-        List<Long> departmentIds = userInfoClient.getDepartmentsManaged(managerId, systemToken);
-        if (departmentIds == null || departmentIds.isEmpty()) {
-            return List.of();
+        UserResponseDTO user = userInfoClient.getUserByEmail(userEmail);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found with email: " + userEmail);
         }
-        List<Long> teamUserIds = new java.util.ArrayList<>();
-        for (Long departmentId : departmentIds) {
-            List<UserResponseDTO> team = userInfoClient.getTeamMembers(departmentId, systemToken);
-            if (team != null) {
-                teamUserIds.addAll(team.stream().map(UserResponseDTO::getId).toList());
-            }
-        }
-        return leaveRepository.findByStatusWithType(Leave.LeaveStatus.PENDING).stream()
-                .filter(l -> teamUserIds.contains(l.getUserId()))
-                .map(leave -> {
-                    LeaveType leaveType = leave.getLeaveType();
-                    if (leaveType != null) {
-                        leaveType.getName();
-                        leaveType.getId();
-                    }
-                    return toResponse(leave);
-                })
+        return leaveRepository.findByUserId(user.getId()).stream()
+                .map(this::toLeaveResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<LeaveResponse> getTeamCalendar(Long departmentId, String month) {
-        String systemToken = serviceAccountTokenProvider.getToken();
-        List<UserResponseDTO> team = userInfoClient.getTeamMembers(departmentId, systemToken);
-        List<Long> teamUserIds = team.stream().map(UserResponseDTO::getId).toList();
-        List<Leave> allLeaves = leaveRepository.findByUserIdsWithType(teamUserIds);
-        if (month != null && !month.isEmpty()) {
-            String[] parts = month.split("-");
-            int year = Integer.parseInt(parts[0]);
-            int monthNum = Integer.parseInt(parts[1]);
-            allLeaves = allLeaves.stream()
-                    .filter(l -> l.getStartDate().getYear() == year && l.getStartDate().getMonthValue() == monthNum)
-                    .toList();
+    public List<LeaveResponse> getPendingLeaves(String managerEmail) {
+        UserResponseDTO manager = userInfoClient.getUserByEmail(managerEmail);
+        if (manager == null) {
+            throw new IllegalArgumentException("Manager not found");
         }
-        return allLeaves.stream().map(this::toResponse).collect(Collectors.toList());
+
+        if (manager.getRole() == Role.ADMIN) {
+            return leaveRepository.findByStatus(Leave.LeaveStatus.PENDING)
+                    .stream()
+                    .map(this::toLeaveResponse)
+                    .collect(Collectors.toList());
+        } else if (manager.getRole() == Role.MANAGER) {
+            List<Long> managedDepartmentIds = userInfoClient.getDepartmentsManaged(manager.getId());
+            if (managedDepartmentIds == null || managedDepartmentIds.isEmpty()) {
+                return Collections.emptyList();
+            }
+            return leaveRepository.findByDepartmentIdInAndStatus(managedDepartmentIds, Leave.LeaveStatus.PENDING)
+                    .stream()
+                    .map(this::toLeaveResponse)
+                    .collect(Collectors.toList());
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public List<LeaveResponse> getTeamCalendar(Long departmentId, String month) {
+        try {
+            YearMonth yearMonth = YearMonth.parse(month, DateTimeFormatter.ofPattern("yyyy-MM"));
+            LocalDate startDate = yearMonth.atDay(1);
+            LocalDate endDate = yearMonth.atEndOfMonth();
+
+            return leaveRepository.findByDepartmentIdAndStartDateGreaterThanEqualAndEndDateLessThanEqualWithType(
+                    departmentId, startDate, endDate)
+                    .stream()
+                    .map(this::toLeaveResponse)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error parsing month format: {}", month, e);
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public List<LeaveResponse> getTeamCalendarForManager(String managerEmail, String month) {
+        UserResponseDTO manager = userInfoClient.getUserByEmail(managerEmail);
+        if (manager == null) {
+            throw new IllegalArgumentException("Manager not found");
+        }
+
+        if (manager.getRole() == Role.ADMIN) {
+            // Admin sees all departments
+            try {
+                YearMonth yearMonth = YearMonth.parse(month, DateTimeFormatter.ofPattern("yyyy-MM"));
+                LocalDate startDate = yearMonth.atDay(1);
+                LocalDate endDate = yearMonth.atEndOfMonth();
+
+                return leaveRepository
+                        .findByStartDateGreaterThanEqualAndEndDateLessThanEqualWithType(startDate, endDate)
+                        .stream()
+                        .map(this::toLeaveResponse)
+                        .collect(Collectors.toList());
+            } catch (Exception e) {
+                log.error("Error parsing month format: {}", month, e);
+                return Collections.emptyList();
+            }
+        } else if (manager.getRole() == Role.MANAGER) {
+            List<Long> managedDepartmentIds = userInfoClient.getDepartmentsManaged(manager.getId());
+            if (managedDepartmentIds == null || managedDepartmentIds.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            try {
+                YearMonth yearMonth = YearMonth.parse(month, DateTimeFormatter.ofPattern("yyyy-MM"));
+                LocalDate startDate = yearMonth.atDay(1);
+                LocalDate endDate = yearMonth.atEndOfMonth();
+
+                return leaveRepository.findByDepartmentIdInAndStartDateGreaterThanEqualAndEndDateLessThanEqualWithType(
+                        managedDepartmentIds, startDate, endDate)
+                        .stream()
+                        .map(this::toLeaveResponse)
+                        .collect(Collectors.toList());
+            } catch (Exception e) {
+                log.error("Error parsing month format: {}", month, e);
+                return Collections.emptyList();
+            }
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public List<LeaveResponse> getStaffTeamCalendar(Long userId, String month) {
+        UserResponseDTO user = userInfoClient.getUserById(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+
+        return getTeamCalendar(user.getDepartmentId(), month);
     }
 
     @Override
     public List<LeaveResponse> searchLeaves(String query) {
-        // Simple search: filter by reason or status
-        String q = query == null ? "" : query.toLowerCase();
-        List<Leave> filteredLeaves = leaveRepository.findAll().stream()
-                .filter(l -> (l.getReason() != null && l.getReason().toLowerCase().contains(q))
-                        || l.getStatus().name().toLowerCase().contains(q))
-                .toList();
-        return filteredLeaves.stream().map(leave -> {
-            LeaveType leaveType = leave.getLeaveType();
-            if (leaveType != null) {
-                leaveType.getName();
-                leaveType.getId();
-            }
-            return toResponse(leave);
-        }).collect(Collectors.toList());
+        // This is a simplified search implementation
+        // In a real application, you might want to use a more sophisticated search
+        // engine
+        return leaveRepository.findAll().stream()
+                .filter(leave -> {
+                    try {
+                        UserResponseDTO user = userInfoClient.getUserById(leave.getUserId());
+                        String userName = user != null ? (user.getFirstName() + " " + user.getLastName()) : "";
+                        String leaveTypeName = leave.getLeaveType() != null ? leave.getLeaveType().getName() : "";
+                        String reason = leave.getReason() != null ? leave.getReason() : "";
+
+                        return userName.toLowerCase().contains(query.toLowerCase()) ||
+                                leaveTypeName.toLowerCase().contains(query.toLowerCase()) ||
+                                reason.toLowerCase().contains(query.toLowerCase());
+                    } catch (Exception e) {
+                        log.warn("Error searching leave with ID {}: {}", leave.getId(), e.getMessage());
+                        return false;
+                    }
+                })
+                .map(this::toLeaveResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<LeaveResponse> getTeamCalendarForManager(String managerEmail, String month) {
-        Object managerObj = managerEmail != null && managerEmail.matches("\\d+")
-                ? userInfoClient.getUserById(Long.parseLong(managerEmail), null)
-                : userInfoClient.getUserByEmail(managerEmail, null);
-        if (managerObj == null)
-            throw new IllegalArgumentException("Manager not found");
-        Long managerId = (managerObj instanceof com.daking.auth.api.model.User)
-                ? ((com.daking.auth.api.model.User) managerObj).getId()
-                : ((com.daking.auth.api.dto.UserResponseDTO) managerObj).getId();
-        String systemToken = serviceAccountTokenProvider.getToken();
-        List<Long> departmentIds = userInfoClient.getDepartmentsManaged(managerId, systemToken);
-        if ((departmentIds == null || departmentIds.isEmpty()) && "ADMIN".equalsIgnoreCase(
-                (managerObj instanceof com.daking.auth.api.model.User)
-                        ? ((com.daking.auth.api.model.User) managerObj).getRole().name()
-                        : ((com.daking.auth.api.dto.UserResponseDTO) managerObj).getRole().name())) {
-            List<Leave> allLeaves = leaveRepository.findAllWithType();
-            if (month != null && !month.isEmpty()) {
-                String[] parts = month.split("-");
-                int year = Integer.parseInt(parts[0]);
-                int monthNum = Integer.parseInt(parts[1]);
-                allLeaves = allLeaves.stream()
-                        .filter(l -> l.getStartDate().getYear() == year && l.getStartDate().getMonthValue() == monthNum)
-                        .toList();
-            }
-            return allLeaves.stream().map(this::toResponse).collect(Collectors.toList());
-        }
-        if (departmentIds == null || departmentIds.isEmpty()) {
-            throw new IllegalArgumentException("Manager does not manage any departments");
-        }
-        List<Long> teamUserIds = new ArrayList<>();
-        for (Long departmentId : departmentIds) {
-            List<UserResponseDTO> team = userInfoClient.getTeamMembers(departmentId, systemToken);
-            teamUserIds.addAll(team.stream().map(UserResponseDTO::getId).toList());
-        }
-        List<Leave> allLeaves = leaveRepository.findByUserIdsWithType(teamUserIds);
-        if (month != null && !month.isEmpty()) {
-            String[] parts = month.split("-");
-            int year = Integer.parseInt(parts[0]);
-            int monthNum = Integer.parseInt(parts[1]);
-            allLeaves = allLeaves.stream()
-                    .filter(l -> l.getStartDate().getYear() == year && l.getStartDate().getMonthValue() == monthNum)
-                    .toList();
-        }
-        return allLeaves.stream().map(this::toResponse).collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public List<LeaveResponse> getRecentLeaves() {
-        try {
-            List<Leave> recentLeaves = leaveRepository.findAllWithType().stream()
-                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
-                    .limit(10)
-                    .toList();
-            return recentLeaves.stream().map(this::toResponse).collect(Collectors.toList());
-        } catch (Exception ex) {
-            logger.error("Error in getRecentLeaves: {}", ex.getMessage());
-            return List.of();
-        }
+        return leaveRepository.findAll().stream()
+                .limit(10) // Default limit of 10 recent leaves
+                .map(this::toLeaveResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
     public int countAllLeaves() {
-        try {
-            return (int) leaveRepository.count();
-        } catch (Exception ex) {
-            logger.error("Error in countAllLeaves: {}", ex.getMessage());
-            return 0;
-        }
+        return (int) leaveRepository.count();
     }
 
     @Override
     public int countLeavesByStatus(String status) {
         try {
-            return (int) leaveRepository.findAll().stream()
-                    .filter(l -> l.getStatus().name().equalsIgnoreCase(status))
-                    .count();
-        } catch (Exception ex) {
-            logger.error("Error in countLeavesByStatus: {}", ex.getMessage());
+            return (int) leaveRepository.countByStatus(Leave.LeaveStatus.valueOf(status.toUpperCase()));
+        } catch (IllegalArgumentException e) {
+            log.warn("Attempted to count leaves with invalid status: {}", status);
             return 0;
         }
     }
 
     @Override
     public List<LeaveResponse> getLeavesByUserId(Long userId) {
-        List<Leave> leaves = leaveRepository.findByUserIdWithType(userId);
-        return leaves.stream().map(this::toResponse).collect(Collectors.toList());
+        return leaveRepository.findByUserId(userId).stream()
+                .map(this::toLeaveResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<LeaveResponse> getAllLeaves() {
-        List<Leave> leaves = leaveRepository.findAllWithType();
-        return leaves.stream().map(this::toResponse).collect(Collectors.toList());
-    }
-
-    @Override
-    public List<LeaveResponse> getStaffTeamCalendar(Long userId, String month) {
-        // userId is the staff's userId (see JwtAuthenticationFilter)
-        String systemToken = serviceAccountTokenProvider.getToken();
-        var staff = userInfoClient.getUserById(userId, systemToken);
-        if (staff == null)
-            throw new IllegalArgumentException("Staff not found");
-
-        // Get staff's department
-        Long departmentId = staff.getDepartmentId();
-        if (departmentId == null)
-            throw new IllegalArgumentException("Staff is not assigned to any department");
-
-        // Get team members for the department
-        List<UserResponseDTO> team = userInfoClient.getTeamMembers(departmentId, systemToken);
-        List<Long> teamUserIds = team.stream().map(UserResponseDTO::getId).toList();
-
-        // Get all leaves for team members (eager fetch leaveType)
-        List<Leave> allLeaves = leaveRepository.findByUserIdsWithType(teamUserIds);
-
-        // Filter by month if specified
-        if (month != null && !month.isEmpty()) {
-            String[] parts = month.split("-");
-            int year = Integer.parseInt(parts[0]);
-            int monthNum = Integer.parseInt(parts[1]);
-            allLeaves = allLeaves.stream()
-                    .filter(l -> l.getStartDate().getYear() == year && l.getStartDate().getMonthValue() == monthNum)
-                    .toList();
-        }
-
-        return allLeaves.stream().map(this::toResponse).collect(Collectors.toList());
+        return leaveRepository.findAll().stream()
+                .map(this::toLeaveResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<LeaveResponse> getLeavesByUserIds(List<Long> userIds) {
-        List<Leave> leaves = leaveRepository.findByUserIdsWithType(userIds);
-        return leaves.stream().map(this::toResponse).collect(Collectors.toList());
+        return leaveRepository.findByUserIdsWithType(userIds).stream()
+                .map(this::toLeaveResponse)
+                .collect(Collectors.toList());
+    }
+
+    private LeaveResponse toLeaveResponse(Leave leave) {
+        LeaveResponse dto = new LeaveResponse();
+        dto.setId(leave.getId());
+        dto.setUserId(leave.getUserId());
+        dto.setLeaveTypeId(leave.getLeaveType().getId());
+        dto.setLeaveTypeName(leave.getLeaveType().getName());
+        dto.setStartDate(leave.getStartDate());
+        dto.setEndDate(leave.getEndDate());
+        dto.setReason(leave.getReason());
+        dto.setStatus(leave.getStatus().name());
+        dto.setComments(leave.getComments());
+        dto.setApproverId(leave.getApproverId());
+        dto.setCreatedAt(leave.getCreatedAt());
+        dto.setUpdatedAt(leave.getUpdatedAt());
+
+        if (leave.getDocuments() != null && !leave.getDocuments().isEmpty()) {
+            dto.setDocumentIds(leave.getDocuments().stream().map(Document::getId)
+                    .collect(Collectors.toList()));
+            dto.setDocuments(leave.getDocuments().stream()
+                    .map(documentService::toResponse)
+                    .collect(Collectors.toList()));
+        }
+
+        try {
+            UserResponseDTO user = userInfoClient.getUserById(leave.getUserId());
+            if (user != null) {
+                dto.setEmployeeName(user.getFirstName() + " " + user.getLastName());
+            }
+        } catch (Exception e) {
+            log.warn("Could not enrich leave response with user/approver details for leaveId {}: {}", leave.getId(),
+                    e.getMessage());
+        }
+
+        return dto;
+    }
+
+    private boolean isApproverAuthorized(UserResponseDTO approver, Long departmentId) {
+        if (approver.getRole() == Role.ADMIN) {
+            return true;
+        }
+        if (approver.getRole() == Role.MANAGER) {
+            List<Long> managedDepts = userInfoClient.getDepartmentsManaged(approver.getId());
+            return managedDepts != null && managedDepts.contains(departmentId);
+        }
+        return false;
     }
 }
