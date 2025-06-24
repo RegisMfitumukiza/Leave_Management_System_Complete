@@ -44,6 +44,11 @@ management:
 
 # Docker-specific settings
 eureka:
+  client:
+    service-url:
+      defaultZone: http://${EUREKA_DASHBOARD_USER}:${EUREKA_DASHBOARD_PASSWORD}@eureka-server:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
   instance:
     hostname: ${EUREKA_INSTANCE_HOSTNAME:auth-service}
     prefer-ip-address: true
