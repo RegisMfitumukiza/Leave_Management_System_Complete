@@ -162,8 +162,8 @@ services:
   # Leave Management Service
   leave-service:
     build:
-      context: .
-      dockerfile: leave-service/Dockerfile
+      context: ./leave-service
+      dockerfile: Dockerfile
     container_name: leave-management-leave
     restart: unless-stopped
     env_file:

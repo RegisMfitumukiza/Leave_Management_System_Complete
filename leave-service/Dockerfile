@@ -1,7 +1,17 @@
 # Build Stage
 FROM maven:3.8.5-openjdk-17 AS build
 WORKDIR /app
+
+# Copy leave-service source
 COPY . .
+
+# Copy the shared module from the parent context
+COPY ../auth-service-api ../auth-service-api
+
+# Install the shared module to the local Maven repo
+RUN cd ../auth-service-api && mvn clean install -DskipTests
+
+# Build leave-service
 RUN mvn clean package -DskipTests
 
 # Runtime stage for Leave Service

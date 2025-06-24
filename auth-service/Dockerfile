@@ -2,12 +2,17 @@
 FROM maven:3.8.5-openjdk-17 AS build
 WORKDIR /app
 
-# Copy the entire project context to access auth-service-api
+# Copy auth-service source
 COPY . .
 
-# Build the auth-service-api first, then auth-service
-RUN cd auth-service-api && mvn clean install -DskipTests
-RUN cd auth-service && mvn clean package -DskipTests
+# Copy the shared module from the parent context
+COPY ../auth-service-api ../auth-service-api
+
+# Install the shared module to the local Maven repo
+RUN cd ../auth-service-api && mvn clean install -DskipTests
+
+# Build auth-service
+RUN mvn clean package -DskipTests
 
 # Runtime Stage
 FROM eclipse-temurin:17-jre-jammy
@@ -18,7 +23,7 @@ RUN useradd -m -s /bin/bash appuser
 USER appuser
 
 # Copy JAR from build stage
-COPY --from=build /app/auth-service/target/*.jar app.jar
+COPY --from=build /app/target/*.jar app.jar
 
 # Expose port and health check
 EXPOSE 8081
