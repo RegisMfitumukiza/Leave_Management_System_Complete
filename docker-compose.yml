@@ -53,8 +53,8 @@ services:
   # Authentication Service
   auth-service:
     build:
-      context: ./auth-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: auth-service/Dockerfile
     container_name: leave-management-auth
     restart: unless-stopped
     env_file:
