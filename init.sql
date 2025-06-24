@@ -3,8 +3,14 @@
 -- The default database (auth_db) is created by the container using POSTGRES_DB
 -- If you need leave_db, create it manually or via a migration tool
 
--- Create leave_db database for leave service
-CREATE DATABASE IF NOT EXISTS leave_db;
+-- Create leave_db database for leave service (PostgreSQL compatible)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'leave_db') THEN
+        CREATE DATABASE leave_db;
+    END IF;
+END
+$$;
 
 -- Connect to auth_db (default database) for auth service tables
 -- Create users table
@@ -55,7 +61,7 @@ ON CONFLICT (email) DO NOTHING;
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+-- Removed idx_users_username as username column does not exist
 CREATE INDEX IF NOT EXISTS idx_users_department_id ON users(department_id);
 CREATE INDEX IF NOT EXISTS idx_users_manager_id ON users(manager_id);
 CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
