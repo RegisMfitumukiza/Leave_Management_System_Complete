@@ -21,6 +21,24 @@ spring:
     locations: ${FLYWAY_LOCATIONS:classpath:db/migration}
     validate-on-migrate: ${FLYWAY_VALIDATE_ON_MIGRATE:true}
 
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:10MB}
+      max-request-size: ${MAX_REQUEST_SIZE:10MB}
+
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+    debug: ${MAIL_DEBUG:false}
+
 server:
   port: ${SERVER_PORT:8082}
 
@@ -65,25 +83,6 @@ app:
 jwt:
   secret: ${JWT_SECRET:default-secret-key}
   expiration: ${JWT_EXPIRATION:86400000}
-
-spring:
-  servlet:
-    multipart:
-      max-file-size: ${MAX_FILE_SIZE:10MB}
-      max-request-size: ${MAX_REQUEST_SIZE:10MB}
-
-  mail:
-    host: ${SMTP_HOST:localhost}
-    port: ${SMTP_PORT:587}
-    username: ${SMTP_USERNAME:}
-    password: ${SMTP_PASSWORD:}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-    debug: ${MAIL_DEBUG:false}
 
 # Feign Client Configuration
 feign:

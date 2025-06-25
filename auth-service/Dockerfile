@@ -15,6 +15,9 @@ RUN cd auth-service && mvn clean package -DskipTests
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
+# Install curl for health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN useradd -m -s /bin/bash appuser
 USER appuser

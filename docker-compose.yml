@@ -278,7 +278,7 @@ services:
       eureka-server:
         condition: service_healthy
       auth-service:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
       interval: 30s

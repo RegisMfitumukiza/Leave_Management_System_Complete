@@ -77,8 +77,7 @@ public class SecurityConfig {
                                                                 "/api/oauth2/**",
                                                                 "/oauth2/**",
                                                                 "/login/oauth2/**",
-                                                                "/actuator/health",
-                                                                "/actuator/info",
+                                                                "/actuator/**",
                                                                 // Swagger/OpenAPI
                                                                 "/v2/api-docs",
                                                                 "/v3/api-docs",
