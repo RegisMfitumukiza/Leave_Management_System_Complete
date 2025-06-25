@@ -30,6 +30,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserService userService;
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        // Skip JWT processing for public endpoints
+        return path.startsWith("/actuator/") ||
+                path.startsWith("/api/auth/") ||
+                path.startsWith("/api/oauth2/") ||
+                path.startsWith("/oauth2/") ||
+                path.startsWith("/login/oauth2/") ||
+                path.startsWith("/v2/api-docs") ||
+                path.startsWith("/v3/api-docs") ||
+                path.startsWith("/swagger-ui/") ||
+                path.startsWith("/swagger-resources") ||
+                path.startsWith("/configuration/") ||
+                path.startsWith("/webjars/");
+    }
+
+    @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,

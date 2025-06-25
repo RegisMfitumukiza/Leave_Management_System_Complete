@@ -322,4 +322,4 @@ volumes:
 
 networks:
   leave-management-network:
-    driver: bridge
+    driver: bridge 
