@@ -39,7 +39,7 @@ COPY nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Set ownership for nginx user
-RUN chown -R appuser:appuser /usr/share/nginx/html /var/cache/nginx /var/log/nginx /etc/nginx/conf.d
+RUN chown -R appuser:appuser /usr/share/nginx/html /var/cache/nginx /var/log/nginx /etc/nginx/conf.d /tmp
 
 # Create health check file
 RUN echo "healthy" > /usr/share/nginx/html/health && \
