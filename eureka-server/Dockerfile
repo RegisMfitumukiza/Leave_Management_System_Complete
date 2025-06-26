@@ -7,8 +7,11 @@ RUN mvn clean package -DskipTests
 # Runtime stage for Eureka Server
 FROM eclipse-temurin:17-jre-jammy
 
-# Install curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Install curl for health checks and clean up
+RUN apt-get update && \
+    apt-get install -y curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /app

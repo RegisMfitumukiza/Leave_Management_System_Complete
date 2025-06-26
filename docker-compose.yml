@@ -49,6 +49,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
 
   # Authentication Service
   auth-service:
@@ -160,6 +161,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 120s
 
   # Leave Management Service
   leave-service:
@@ -284,6 +286,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 120s
 
   # React Frontend
   frontend:
